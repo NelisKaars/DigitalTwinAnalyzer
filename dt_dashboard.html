@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        input, button, select {
+            padding: 8px 12px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .thing-list {
+            margin-bottom: 20px;
+        }
+        .thing-item {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .thing-item:hover {
+            background-color: #f1f1f1;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .thing-item.active {
+            border-left: 4px solid #4CAF50;
+            background-color: #e8f5e9;
+        }
+        .thing-details {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+        }
+        .property {
+            margin-bottom: 15px;
+        }
+        .property-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .property-value {
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            grid-gap: 20px;
+        }
+        .panel {
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .visualization {
+            min-height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .chart-container {
+            height: 300px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Digital Twin Dashboard</h1>
+        
+        <div class="controls">
+            <div>
+                <label for="dittoUrl">Ditto URL:</label>
+                <input type="text" id="dittoUrl" value="http://localhost:8080/api/2/things" style="width: 300px;">
+                
+                <label for="username">Username:</label>
+                <input type="text" id="username" value="ditto">
+                
+                <label for="password">Password:</label>
+                <input type="password" id="password" value="ditto">
+                
+                <button id="connectBtn">Connect</button>
+                <button id="refreshBtn">Refresh</button>
+            </div>
+            
+            <div id="connectionStatus"></div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="panel">
+                <h2>Digital Twins</h2>
+                <div id="thingList" class="thing-list">
+                    <div class="loader" id="listLoader"></div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>Twin Details</h2>
+                <div id="thingDetails" class="thing-details">
+                    <p>Select a digital twin from the list to view its details.</p>
+                </div>
+                
+                <div id="visualization" class="visualization">
+                    <h3>Sensor Data Visualization</h3>
+                    <p id="noDataMsg">Select a digital twin with sensor data to visualize.</p>
+                    <div class="chart-container" id="chartContainer" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // Global variables
+        let selectedThingId = null;
+        let chart = null;
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const thingList = document.getElementById('thingList');
+        const thingDetails = document.getElementById('thingDetails');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const listLoader = document.getElementById('listLoader');
+        const chartContainer = document.getElementById('chartContainer');
+        const noDataMsg = document.getElementById('noDataMsg');
+
+        // Hide loader initially
+        listLoader.style.display = 'none';
+
+        // Event listeners
+        connectBtn.addEventListener('click', fetchThings);
+        refreshBtn.addEventListener('click', fetchThings);
+
+        // Function to encode credentials for basic auth
+        function getAuthHeader() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            return 'Basic ' + btoa(username + ':' + password);
+        }
+
+        // Function to fetch things from Ditto
+        async function fetchThings() {
+            const dittoUrl = document.getElementById('dittoUrl').value;
+            listLoader.style.display = 'block';
+            thingList.innerHTML = '';
+            
+            try {
+                const response = await fetch(dittoUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': getAuthHeader(),
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const things = await response.json();
+                displayThingList(things);
+                connectionStatus.innerHTML = '<div style="color: green; margin-top: 10px;">✅ Connected successfully</div>';
+            } catch (error) {
+                connectionStatus.innerHTML = `<div class="error">❌ Connection failed: ${error.message}</div>`;
+                console.error('Error fetching things:', error);
+                thingList.innerHTML = '<div class="error">Failed to fetch digital twins. Please check your connection settings.</div>';
+            } finally {
+                listLoader.style.display = 'none';
+            }
+        }
+
+        // Function to display the list of things
+        function displayThingList(things) {
+            if (!Array.isArray(things) || things.length === 0) {
+                thingList.innerHTML = '<div style="padding: 15px;">No digital twins found.</div>';
+                return;
+            }
+            
+            thingList.innerHTML = '';
+            things.forEach(thing => {
+                const item = document.createElement('div');
+                item.className = 'thing-item';
+                item.textContent = thing.thingId;
+                
+                item.addEventListener('click', () => {
+                    // Remove active class from all items
+                    document.querySelectorAll('.thing-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked item
+                    item.classList.add('active');
+                    
+                    // Fetch and display thing details
+                    fetchThingDetails(thing.thingId);
+                });
+                
+                thingList.appendChild(item);
+            });
+        }
+
+        // Function to fetch thing details
+        async function fetchThingDetails(thingId) {
+            selectedThingId = thingId;
+            const dittoBaseUrl = document.getElementById('dittoUrl').value.split('/api')[0];
+            const thingUrl = `${dittoBaseUrl}/api/2/things/${thingId}`;
+            
+            thingDetails.innerHTML = '<div class="loader"></div>';
+            
+            try {
+                const response = await fetch(thingUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': getAuthHeader(),
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const thingData = await response.json();
+                displayThingDetails(thingData);
+                
+                // Check for sensor data to visualize
+                if (thingData.features && thingData.features.sensor && thingData.features.sensor.properties) {
+                    visualizeSensorData(thingData.features.sensor.properties);
+                } else {
+                    noDataMsg.style.display = 'block';
+                    chartContainer.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error fetching thing details:', error);
+                thingDetails.innerHTML = `<div class="error">Failed to fetch details: ${error.message}</div>`;
+            }
+        }
+
+        // Function to display thing details
+        function displayThingDetails(thingData) {
+            thingDetails.innerHTML = '';
+            
+            // Create a formatted JSON view
+            const jsonStr = JSON.stringify(thingData, null, 2);
+            const pre = document.createElement('pre');
+            pre.textContent = jsonStr;
+            
+            thingDetails.appendChild(pre);
+        }
+
+        // Function to visualize sensor data
+        function visualizeSensorData(sensorProperties) {
+            // If properties don't have historical data, we can't create a time-series chart
+            // Instead, we'll just show the current values
+            noDataMsg.style.display = 'none';
+            chartContainer.style.display = 'block';
+            
+            // Destroy previous chart if exists
+            if (chart) {
+                chart.destroy();
+            }
+            
+            // Create a simple bar chart showing the sensor values
+            const ctx = document.createElement('canvas');
+            chartContainer.innerHTML = '';
+            chartContainer.appendChild(ctx);
+            
+            // Exclude timestamp from the data visualization
+            const labels = [];
+            const values = [];
+            
+            for (const [key, value] of Object.entries(sensorProperties)) {
+                if (key !== 'timestamp') {
+                    labels.push(key);
+                    values.push(parseFloat(value) || 0);
+                }
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Sensor Values',
+                        data: values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(fetchThings, 1000);
+        });
+        
+        // Setup auto-refresh
+        setInterval(() => {
+            if (selectedThingId) {
+                fetchThingDetails(selectedThingId);
+            }
+        }, 5000); // Refresh every 5 seconds
+    </script>
+</body>
+</html>

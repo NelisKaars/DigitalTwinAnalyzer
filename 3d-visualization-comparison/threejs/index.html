@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Digital Twin Visualization</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        .metrics {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            z-index: 100;
+        }
+        input, button, select {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .twin-data {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow: auto;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h3>Three.js Digital Twin</h3>
+        <div>
+            <label for="dittoUrl">Ditto URL:</label>
+            <input type="text" id="dittoUrl" value="http://localhost:8080/api/2/things" style="width: 250px;">
+        </div>
+        <div>
+            <label for="username">Username:</label>
+            <input type="text" id="username" value="ditto">
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="ditto">
+        </div>
+        <div>
+            <label for="modelSelect">3D Model:</label>
+            <select id="modelSelect">
+                <option value="machine">Machine</option>
+                <option value="robot">Robot</option>
+                <option value="factory">Factory</option>
+            </select>
+        </div>
+        <button id="connectBtn">Connect to Digital Twin</button>
+        <div id="connectionStatus"></div>
+    </div>
+
+    <div class="metrics">
+        <div>FPS: <span id="fps">0</span></div>
+        <div>Memory: <span id="memory">0</span> MB</div>
+        <div>Load Time: <span id="loadTime">0</span> ms</div>
+        <div>Update Latency: <span id="updateLatency">0</span> ms</div>
+    </div>
+
+    <div class="twin-data" id="twinData">
+        <h4>Digital Twin Data</h4>
+        <div id="twinProperties">Not connected</div>
+    </div>
+
+    <!-- Import three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <!-- Import OrbitControls for camera manipulation -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+    <!-- Import GLTFLoader for loading 3D models -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Import stats.js for performance monitoring -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
+
+    <script>
+        // Performance measurement
+        const metrics = {
+            fps: 0,
+            memory: 0,
+            loadStartTime: 0,
+            loadTime: 0,
+            updateStartTime: 0,
+            updateLatency: 0
+        };
+
+        // Three.js variables
+        let scene, camera, renderer, controls;
+        let mixer, clock;
+        let model;
+        let stats;
+
+        // Digital Twin variables
+        let selectedThingId = null;
+        let twinData = null;
+        let wsConnection = null;
+        
+        // Setup Three.js scene
+        function initScene() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.5, 3);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7.5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // Add grid helper
+            const gridHelper = new THREE.GridHelper(10, 10);
+            scene.add(gridHelper);
+            
+            // Add orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Initialize clock for animations
+            clock = new THREE.Clock();
+            
+            // Initialize stats for performance monitoring
+            stats = new Stats();
+            stats.showPanel(0); // 0: fps, 1: ms, 2: mb
+            document.body.appendChild(stats.dom);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // Start animation loop
+            animate();
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            stats.begin();
+            
+            // Update controls
+            controls.update();
+            
+            // Update any animations
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+            
+            // Update any model transformations based on twin data
+            updateModelFromTwinData();
+            
+            renderer.render(scene, camera);
+            
+            // Update metrics
+            metrics.fps = Math.round(stats.getFPS());
+            metrics.memory = Math.round(performance.memory ? performance.memory.usedJSHeapSize / (1024 * 1024) : 0);
+            updateMetricsDisplay();
+            
+            stats.end();
+        }
+        
+        // Function to load a 3D model
+        function loadModel(modelName) {
+            // Clear previous model if any
+            if (model) {
+                scene.remove(model);
+                model = null;
+            }
+            
+            // Record load start time
+            metrics.loadStartTime = performance.now();
+            
+            // Show loading state
+            document.getElementById('connectionStatus').textContent = 'Loading model...';
+            
+            // In a real application, you'd use actual model paths
+            const modelPath = '../models/' + modelName + '.glb';
+            
+            // For this demo, we'll create placeholder geometry instead of loading actual models
+            // This makes the example work even if you don't have models yet
+            let geometry;
+            
+            switch(modelName) {
+                case 'machine':
+                    geometry = new THREE.BoxGeometry(1, 0.5, 0.8);
+                    break;
+                case 'robot':
+                    // Create a simple robot-like shape
+                    const robotGroup = new THREE.Group();
+                    
+                    // Body
+                    const body = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.5, 0.8, 0.4),
+                        new THREE.MeshStandardMaterial({ color: 0x333333 })
+                    );
+                    body.position.y = 0.5;
+                    robotGroup.add(body);
+                    
+                    // Head
+                    const head = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.2, 16, 16),
+                        new THREE.MeshStandardMaterial({ color: 0x666666 })
+                    );
+                    head.position.y = 1.1;
+                    robotGroup.add(head);
+                    
+                    // Arms
+                    const armLeft = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.05, 0.05, 0.6),
+                        new THREE.MeshStandardMaterial({ color: 0x777777 })
+                    );
+                    armLeft.position.set(-0.3, 0.5, 0);
+                    armLeft.rotation.z = Math.PI / 4;
+                    robotGroup.add(armLeft);
+                    
+                    const armRight = armLeft.clone();
+                    armRight.position.x = 0.3;
+                    armRight.rotation.z = -Math.PI / 4;
+                    robotGroup.add(armRight);
+                    
+                    scene.add(robotGroup);
+                    model = robotGroup;
+                    
+                    // Record load time
+                    metrics.loadTime = performance.now() - metrics.loadStartTime;
+                    document.getElementById('connectionStatus').textContent = 'Model loaded';
+                    return;
+                    
+                case 'factory':
+                    // Create a simple factory layout
+                    const factoryGroup = new THREE.Group();
+                    
+                    // Floor
+                    const floor = new THREE.Mesh(
+                        new THREE.BoxGeometry(10, 0.1, 10),
+                        new THREE.MeshStandardMaterial({ color: 0xcccccc })
+                    );
+                    floor.position.y = -0.05;
+                    factoryGroup.add(floor);
+                    
+                    // Machines
+                    for (let i = 0; i < 5; i++) {
+                        const machine = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.8, 0.5, 0.6),
+                            new THREE.MeshStandardMaterial({ color: 0x555555 })
+                        );
+                        machine.position.set(i * 1.5 - 3, 0.25, 0);
+                        factoryGroup.add(machine);
+                    }
+                    
+                    // Walls
+                    const wallBack = new THREE.Mesh(
+                        new THREE.BoxGeometry(10, 2, 0.1),
+                        new THREE.MeshStandardMaterial({ color: 0xeeeeee })
+                    );
+                    wallBack.position.set(0, 1, -5);
+                    factoryGroup.add(wallBack);
+                    
+                    const wallLeft = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.1, 2, 10),
+                        new THREE.MeshStandardMaterial({ color: 0xeeeeee })
+                    );
+                    wallLeft.position.set(-5, 1, 0);
+                    factoryGroup.add(wallLeft);
+                    
+                    scene.add(factoryGroup);
+                    model = factoryGroup;
+                    
+                    // Record load time
+                    metrics.loadTime = performance.now() - metrics.loadStartTime;
+                    document.getElementById('connectionStatus').textContent = 'Model loaded';
+                    return;
+                    
+                default:
+                    geometry = new THREE.BoxGeometry(1, 1, 1);
+            }
+            
+            // Create a simple mesh as placeholder
+            const material = new THREE.MeshStandardMaterial({ color: 0x1976D2 });
+            model = new THREE.Mesh(geometry, material);
+            scene.add(model);
+            
+            // In a real application, you'd load the actual model like this:
+            /*
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                modelPath,
+                function(gltf) {
+                    model = gltf.scene;
+                    scene.add(model);
+                    
+                    // Check for animations
+                    if (gltf.animations && gltf.animations.length) {
+                        mixer = new THREE.AnimationMixer(model);
+                        const action = mixer.clipAction(gltf.animations[0]);
+                        action.play();
+                    }
+                    
+                    metrics.loadTime = performance.now() - metrics.loadStartTime;
+                    document.getElementById('connectionStatus').textContent = 'Model loaded';
+                },
+                function(xhr) {
+                    const percent = xhr.loaded / xhr.total * 100;
+                    document.getElementById('connectionStatus').textContent = `Loading: ${Math.round(percent)}%`;
+                },
+                function(error) {
+                    console.error('Error loading model:', error);
+                    document.getElementById('connectionStatus').textContent = 'Error loading model';
+                }
+            );
+            */
+            
+            // Record load time for our placeholder
+            metrics.loadTime = performance.now() - metrics.loadStartTime;
+            document.getElementById('connectionStatus').textContent = 'Model loaded';
+        }
+        
+        // Function to update model based on twin data
+        function updateModelFromTwinData() {
+            if (!model || !twinData || !twinData.features || !twinData.features.sensor) return;
+            
+            metrics.updateStartTime = performance.now();
+            
+            const properties = twinData.features.sensor.properties;
+            
+            // Example mapping of sensor data to visual properties
+            // You would customize this based on your actual data and model
+            if (model.rotation) {
+                // Example: Map a sensor value to rotation (convert string to number)
+                const rotationValue = parseFloat(properties.value || 0) / 100;
+                model.rotation.y = rotationValue * Math.PI * 2;
+                
+                // Example: Map a different sensor value to color
+                if (model.material) {
+                    const colorValue = parseFloat(properties.value || 0) / 100;
+                    model.material.color.setHSL(colorValue, 1, 0.5);
+                }
+            }
+            
+            metrics.updateLatency = performance.now() - metrics.updateStartTime;
+        }
+        
+        // Function to connect to Ditto and get things
+        async function connectToDitto() {
+            const dittoUrl = document.getElementById('dittoUrl').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            document.getElementById('connectionStatus').textContent = 'Connecting...';
+            
+            try {
+                const response = await fetch(dittoUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa(username + ':' + password),
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const things = await response.json();
+                
+                if (Array.isArray(things) && things.length > 0) {
+                    // Get the first thing
+                    selectedThingId = things[0].thingId;
+                    document.getElementById('connectionStatus').textContent = `Connected to ${selectedThingId}`;
+                    
+                    // Start fetching thing data
+                    fetchThingData();
+                    
+                    // Optionally, set up WebSocket connection for real-time updates
+                    setupWebSocket();
+                } else {
+                    document.getElementById('connectionStatus').textContent = 'No things found';
+                }
+                
+            } catch (error) {
+                console.error('Error connecting to Ditto:', error);
+                document.getElementById('connectionStatus').textContent = `Connection error: ${error.message}`;
+            }
+        }
+        
+        // Function to fetch thing data
+        async function fetchThingData() {
+            if (!selectedThingId) return;
+            
+            const dittoBaseUrl = document.getElementById('dittoUrl').value.split('/api')[0];
+            const thingUrl = `${dittoBaseUrl}/api/2/things/${selectedThingId}`;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(thingUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa(username + ':' + password),
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                twinData = await response.json();
+                
+                // Update UI with twin data
+                document.getElementById('twinProperties').textContent = JSON.stringify(twinData.features?.sensor?.properties || {}, null, 2);
+                
+            } catch (error) {
+                console.error('Error fetching thing data:', error);
+            }
+        }
+        
+        // Setup WebSocket connection for real-time updates
+        function setupWebSocket() {
+            // In a real application, you'd connect to Ditto's WebSocket API
+            // This is a placeholder implementation
+            
+            // Close any existing connection
+            if (wsConnection) {
+                wsConnection.close();
+            }
+            
+            // For now, just poll for updates
+            setInterval(fetchThingData, 1000);
+        }
+        
+        // Function to update metrics display
+        function updateMetricsDisplay() {
+            document.getElementById('fps').textContent = metrics.fps;
+            document.getElementById('memory').textContent = metrics.memory;
+            document.getElementById('loadTime').textContent = metrics.loadTime.toFixed(0);
+            document.getElementById('updateLatency').textContent = metrics.updateLatency.toFixed(2);
+        }
+        
+        // Initialize everything when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initialize Three.js scene
+            initScene();
+            
+            // Add event listeners
+            document.getElementById('connectBtn').addEventListener('click', connectToDitto);
+            
+            document.getElementById('modelSelect').addEventListener('change', (e) => {
+                loadModel(e.target.value);
+            });
+            
+            // Load initial model
+            loadModel('machine');
+        });
+    </script>
+</body>
+</html>
