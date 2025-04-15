@@ -1,0 +1,28 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. 2023 */
+/* SPDX-License-Identifier: Apache-2.0 */
+.root {
+  display: grid;
+  grid-auto-flow: row;
+  row-gap: 20rem;
+  user-select: none;
+  z-index: var(--z-index-10);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  column-gap: 30rem;
+  height: max-content;
+}
+
+.head>* {
+  height: 100%;
+}
+
+.head>*:first-child {
+  padding-right: 15rem;
+}
+
+.subhead {
+  display: none;
+}

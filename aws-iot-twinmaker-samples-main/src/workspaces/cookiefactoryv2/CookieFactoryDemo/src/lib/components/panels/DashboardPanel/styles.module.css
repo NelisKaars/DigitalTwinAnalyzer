@@ -1,0 +1,45 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. 2023 */
+/* SPDX-License-Identifier: Apache-2.0 */
+.root {
+  --foreground-color: var(--text-layer-2-primary);
+  --foreground-secondary-color: var(--text-layer-2-secondary);
+  --foreground-tertiary-color: var(--text-layer-2-tertiary);
+  --foreground-hover-color: var(--text-layer-2-hover);
+  --foreground-accent-color: var(--text-layer-2-accent);
+  --foreground-active-color: var(--text-layer-2-active);
+  position: relative;
+  display: grid;
+  padding: 63rem var(--body-padding-right) var(--padding-y) var(--body-padding-left);
+}
+
+.root:not(.multi) {
+  grid-template-rows: auto 1fr;
+  row-gap: 15rem;
+}
+
+.emptyState {
+  place-self: center;
+  padding: var(--padding-y) var(--padding-x);
+  color: var(--foreground-tertiary-color);
+  font-size: 34rem;
+  font-weight: var(--font-weight-2);
+  text-align: center;
+}
+
+.name {
+  color: var(--foreground-color);
+  font-size: 24rem;
+  font-weight: var(--font-weight-5);
+}
+
+.charts {
+  display: grid;
+}
+
+.multi {
+  grid-template-rows: auto 180rem auto repeat(2, 1fr);
+}
+
+.multi iot-app-kit-vis-status-timeline iot-app-kit-vis-data-stream-name {
+  display: none;
+}

@@ -1,0 +1,97 @@
+/* Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. 2023 */
+/* SPDX-License-Identifier: Apache-2.0 */
+.root {
+  --background-color: var(--background-layer-1);
+  --background-hover-color: var(--background-layer-1-hover);
+  --background-active-color: var(--background-layer-1-active);
+  --icon-color: var(--color-alarm-unknown);
+  --label-color: var(--text-layer-1-accent);
+  --label-hover-color: var(--text-layer-1-hover);
+  --transition-background-color: background-color var(--transition-duration) var(--transition-easing);
+  --transition-color: color var(--transition-duration) var(--transition-easing);
+  display: grid;
+  place-items: center start;
+  column-gap: 60rem;
+}
+
+.button {
+  display: grid;
+  place-items: center start;
+  grid-auto-flow: column;
+  gap: 6rem;
+  padding: 10rem 15rem;
+  height: 100%;
+  background-color: var(--background-color);
+  border-radius: var(--radius-10);
+  transition: var(--transition-background-color);
+}
+
+.button:hover {
+  --background-color: var(--background-hover-color);
+  --label-color: var(--label-hover-color);
+}
+
+.button.events {
+  translate: -2rem 0;
+}
+
+.icon {
+  --size: 20rem;
+  width: var(--size);
+  height: var(--size);
+  color: var(--icon-color);
+  transition: var(--transition-color);
+}
+
+.icon.High {
+  --icon-color: var(--color-alarm-high);
+}
+
+.icon.Medium {
+  --icon-color: var(--color-alarm-medium);
+}
+
+.icon.Low {
+  --icon-color: var(--color-alarm-low);
+}
+
+.icon>svg {
+  width: 100%;
+  height: 100%;
+}
+
+.label {
+  color: var(--label-color);
+  font-size: 20rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-5);
+  line-height: 1;
+  transition: var(--transition-color);
+}
+
+/* events button */
+.eventIndicators {
+  display: grid;
+  gap: 3rem;
+}
+
+.eventIndicator {
+  --size: 5em;
+  width: var(--size);
+  height: var(--size);
+  background-color: var(--color-alarm-unknown);
+  border-radius: var(--size);
+}
+
+.eventIndicator[data-indicator-high=true] {
+  background-color: var(--color-alarm-high);
+}
+
+.eventIndicator[data-indicator-medium=true] {
+  background-color: var(--color-alarm-medium);
+}
+
+.eventIndicator[data-indicator-low=true] {
+  background-color: var(--color-alarm-low);
+  ;
+}

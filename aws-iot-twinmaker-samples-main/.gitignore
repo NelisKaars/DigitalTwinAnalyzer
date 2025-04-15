@@ -1,0 +1,13 @@
+cdk.out
+node_modules
+*.iml
+.vscode
+
+# Python
+__pycache__/
+.python-version
+
+# macOS
+.DS_Store
+
+*.egg-info/

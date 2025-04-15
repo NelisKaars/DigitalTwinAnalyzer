@@ -1,0 +1,4 @@
+boto3==1.21.40
+requests==2.31.0
+urllib3<2
+opencv-python-headless==4.9.0.80

@@ -18,11 +18,12 @@ The CSV file should be located in the DTs directory or specified via command lin
 import csv
 import json
 import time
-import requests
 import argparse
-import os
 import re
 from pathlib import Path
+import os
+import requests
+
 
 def ensure_namespaced_id(thing_id, default_namespace="org.eclipse.ditto"):
     """
@@ -31,10 +32,10 @@ def ensure_namespaced_id(thing_id, default_namespace="org.eclipse.ditto"):
     
     Format should be: namespace:name
     """
+    
     # Check if already has namespace format (contains a colon)
     if ':' in thing_id:
-        return thing_id
-    
+        return thing_id 
     # Replace invalid characters with hyphens (only alphanumeric, period, underscore, hyphen allowed)
     # First convert spaces to hyphens
     sanitized_id = thing_id.replace(' ', '-')
@@ -67,7 +68,19 @@ def simulate_csv_updates(csv_file, ditto_url, ditto_user=None, ditto_pass=None,
     
     try:
         with open(csv_file, newline='') as f:
-            reader = csv.DictReader(f)
+            # Check if the CSV has headers
+            first_line = f.readline().strip()
+            f.seek(0)
+            
+            # Detect the Cookie Factory format (no headers, 6 columns)
+            is_cookie_factory_format = False
+            if len(first_line.split(',')) >= 5 and not first_line.lower().startswith('thingid'):
+                is_cookie_factory_format = True
+                print("Detected Cookie Factory CSV format")
+                columns = ['timestamp', 'component_type', 'component_id', 'property_name', 'value', 'data_type']
+                reader = csv.DictReader(f, fieldnames=columns)
+            else:
+                reader = csv.DictReader(f)
             
             # Check if the CSV has the required columns
             sample_row = next(reader, None)
@@ -77,35 +90,46 @@ def simulate_csv_updates(csv_file, ditto_url, ditto_user=None, ditto_pass=None,
             
             # Reset file pointer to start
             f.seek(0)
-            reader = csv.DictReader(f)
+            
+            if is_cookie_factory_format:
+                reader = csv.DictReader(f, fieldnames=columns)
+            else:
+                reader = csv.DictReader(f)
             
             # Determine which columns to use
             thing_id_col = None
             value_col = None
             timestamp_col = None
+            property_name_col = None
             
-            # Look for standard column names
-            headers = reader.fieldnames
-            if 'thingId' in headers:
-                thing_id_col = 'thingId'
-            elif 'thing_id' in headers:
-                thing_id_col = 'thing_id'
-            elif 'id' in headers:
-                thing_id_col = 'id'
-            
-            if 'value' in headers:
+            if is_cookie_factory_format:
+                thing_id_col = 'component_id'
                 value_col = 'value'
-            elif 'sensor_value' in headers:
-                value_col = 'sensor_value'
-            elif 'measurement' in headers:
-                value_col = 'measurement'
-            
-            if 'timestamp' in headers:
                 timestamp_col = 'timestamp'
-            elif 'time' in headers:
-                timestamp_col = 'time'
-            elif 'date' in headers:
-                timestamp_col = 'date'
+                property_name_col = 'property_name'
+            else:
+                # Look for standard column names
+                headers = reader.fieldnames
+                if 'thingId' in headers:
+                    thing_id_col = 'thingId'
+                elif 'thing_id' in headers:
+                    thing_id_col = 'thing_id'
+                elif 'id' in headers:
+                    thing_id_col = 'id'
+                
+                if 'value' in headers:
+                    value_col = 'value'
+                elif 'sensor_value' in headers:
+                    value_col = 'sensor_value'
+                elif 'measurement' in headers:
+                    value_col = 'measurement'
+                
+                if 'timestamp' in headers:
+                    timestamp_col = 'timestamp'
+                elif 'time' in headers:
+                    timestamp_col = 'time'
+                elif 'date' in headers:
+                    timestamp_col = 'date'
             
             # If we couldn't find standard columns, use the first few columns
             if thing_id_col is None and headers:
@@ -121,13 +145,20 @@ def simulate_csv_updates(csv_file, ditto_url, ditto_user=None, ditto_pass=None,
                 print(f"Warning: No timestamp column found. Using '{timestamp_col}' as timestamp.")
             
             print(f"Using columns: thingId='{thing_id_col}', value='{value_col}', timestamp='{timestamp_col}'")
+            if property_name_col:
+                print(f"Using property name column: '{property_name_col}'")
             
             # Reset file pointer to start again
             f.seek(0)
-            reader = csv.DictReader(f)
+            
+            if is_cookie_factory_format:
+                reader = csv.DictReader(f, fieldnames=columns)
+            else:
+                reader = csv.DictReader(f)
             
             row_count = 0
             success_count = 0
+            current_things = {}  # Track current state of things
             
             for row in reader:
                 row_count += 1
@@ -138,21 +169,49 @@ def simulate_csv_updates(csv_file, ditto_url, ditto_user=None, ditto_pass=None,
                 sensor_value = row.get(value_col, '0')
                 timestamp = row.get(timestamp_col, time.strftime("%Y-%m-%dT%H:%M:%SZ"))
                 
-                if debug:
-                    print(f"DEBUG: Raw thing ID: {raw_thing_id}")
-                    print(f"DEBUG: Formatted thing ID: {thing_id}")
+                # Handle property name for Cookie Factory format
+                property_name = "value"
+                if property_name_col and row.get(property_name_col):
+                    property_name = row.get(property_name_col)
                 
-                # Construct Ditto update payload
-                payload = {
-                    "features": {
-                        "sensor": {
-                            "properties": {
-                                "value": sensor_value,
-                                "timestamp": timestamp
+                # For Cookie Factory format, group by component type and ID
+                if is_cookie_factory_format:
+                    component_type = row.get('component_type', 'Unknown')
+                    
+                    # Initialize the component if it doesn't exist in our tracking
+                    if thing_id not in current_things:
+                        current_things[thing_id] = {
+                            'component_type': component_type,
+                            'properties': {}
+                        }
+                    
+                    # Update the property value
+                    current_things[thing_id]['properties'][property_name] = sensor_value
+                    
+                    # Construct Ditto update payload for this thing with all its properties
+                    payload = {
+                        "features": {
+                            component_type: {
+                                "properties": current_things[thing_id]['properties']
                             }
                         }
                     }
-                }
+                else:
+                    # Construct standard Ditto update payload
+                    payload = {
+                        "features": {
+                            "sensor": {
+                                "properties": {
+                                    "value": sensor_value,
+                                    "timestamp": timestamp
+                                }
+                            }
+                        }
+                    }
+                
+                if debug:
+                    print(f"DEBUG: Raw thing ID: {raw_thing_id}")
+                    print(f"DEBUG: Formatted thing ID: {thing_id}")
                 
                 # Construct the full API URL for this digital twin
                 url = f"{ditto_url}/{thing_id}"

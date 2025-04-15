@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Factory Digital Twin - Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .property {
+            margin: 5px 0;
+        }
+        .value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .alarm {
+            color: #FF5252;
+        }
+        .normal {
+            color: #4CAF50;
+        }
+        .acknowledged {
+            color: #FFC107;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="info">
+            <h2>Cookie Factory Mixer</h2>
+            <div class="property">
+                Temperature: <span id="temperature" class="value">100</span>°C
+            </div>
+            <div class="property">
+                RPM: <span id="rpm" class="value">60</span>
+            </div>
+            <div class="property">
+                Status: <span id="status" class="value normal">NORMAL</span>
+            </div>
+            <p>
+                <small>Connect to Eclipse Ditto to see live updates</small>
+            </p>
+        </div>
+        <div id="loading">Loading 3D model...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Scene setup
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 5);
+
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Ground plane
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xcccccc,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Mixer model and state
+        let mixer;
+        let mixerModel;
+        let rotatingPart;
+        const mixerState = {
+            temperature: 100,
+            rpm: 60,
+            status: 'NORMAL'
+        };
+
+        // Load the model
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/CookieFactoryMixer.glb', (gltf) => {
+            mixerModel = gltf.scene;
+            
+            // Apply shadows to all meshes
+            mixerModel.traverse((node) => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                }
+                
+                // Identify the rotating part by name (you may need to adjust this)
+                if (node.isMesh && node.name.toLowerCase().includes('mixer') || 
+                    node.name.toLowerCase().includes('blade')) {
+                    rotatingPart = node;
+                    console.log("Found rotating part:", node.name);
+                }
+            });
+            
+            // Position the model
+            mixerModel.position.y = 0;
+            mixerModel.scale.set(1, 1, 1);
+            
+            scene.add(mixerModel);
+            document.getElementById('loading').style.display = 'none';
+            
+            // If we couldn't find the rotating part, use the whole model
+            if (!rotatingPart) {
+                console.log("No specific rotating part found, using first mesh");
+                mixerModel.traverse((node) => {
+                    if (!rotatingPart && node.isMesh) {
+                        rotatingPart = node;
+                    }
+                });
+            }
+        }, 
+        // Progress callback
+        (xhr) => {
+            const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+            document.getElementById('loading').textContent = `Loading 3D model... ${percent}%`;
+        },
+        // Error callback
+        (error) => {
+            console.error('Error loading model:', error);
+            document.getElementById('loading').textContent = 'Error loading 3D model!';
+        });
+
+        // Connect to Ditto WebSocket for live updates (optional)
+        function connectToDitto() {
+            const wsUrl = 'ws://localhost:8080/ws/2';
+            const socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function() {
+                console.log('Connected to Ditto WebSocket');
+                
+                // Subscribe to changes for the Mixer thing
+                const subscribeMsg = {
+                    "topic": "org.eclipse.ditto/req-1/things/twin/commands/modify",
+                    "path": "/",
+                    "headers": {
+                        "content-type": "application/json"
+                    },
+                    "value": {
+                        "topic": "org.eclipse.ditto/Mixer/things/twin/commands/modify",
+                        "path": "/"
+                    }
+                };
+                socket.send(JSON.stringify(subscribeMsg));
+            };
+            
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Received data:', data);
+                    
+                    // Check if this is a Mixer update
+                    if (data.topic && data.topic.includes('/Mixer/')) {
+                        // Extract properties
+                        const features = data.value?.features;
+                        if (features && features.Mixer) {
+                            const props = features.Mixer.properties;
+                            
+                            // Update mixer state
+                            if (props.Temperature) {
+                                mixerState.temperature = parseFloat(props.Temperature);
+                                document.getElementById('temperature').textContent = mixerState.temperature.toFixed(1);
+                            }
+                            
+                            if (props.RPM) {
+                                mixerState.rpm = parseFloat(props.RPM);
+                                document.getElementById('rpm').textContent = mixerState.rpm.toFixed(1);
+                            }
+                        }
+                        
+                        if (features && features.Alarm) {
+                            const props = features.Alarm.properties;
+                            
+                            if (props.alarm_status) {
+                                mixerState.status = props.alarm_status;
+                                const statusElement = document.getElementById('status');
+                                statusElement.textContent = mixerState.status;
+                                
+                                // Update CSS class based on status
+                                statusElement.className = 'value';
+                                if (mixerState.status === 'NORMAL') {
+                                    statusElement.classList.add('normal');
+                                } else if (mixerState.status === 'ACKNOWLEDGED') {
+                                    statusElement.classList.add('acknowledged');
+                                } else if (mixerState.status === 'ACTIVE') {
+                                    statusElement.classList.add('alarm');
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                }
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+            
+            socket.onclose = function() {
+                console.log('WebSocket connection closed');
+                // Try to reconnect after a delay
+                setTimeout(connectToDitto, 5000);
+            };
+        }
+        
+        // Try to connect to Ditto (commented out by default, uncomment to enable)
+        // connectToDitto();
+
+        // Animation loop
+        let lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            // Calculate delta time in seconds
+            const deltaTime = (time - lastTime) / 1000;
+            lastTime = time;
+            
+            // Update controls
+            controls.update();
+            
+            // Rotate the mixer part based on RPM
+            if (rotatingPart) {
+                // Convert RPM to radians per second
+                const radiansPerSecond = (mixerState.rpm / 60) * Math.PI * 2;
+                rotatingPart.rotation.y += radiansPerSecond * deltaTime;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate(0);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
