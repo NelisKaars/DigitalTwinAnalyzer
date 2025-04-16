@@ -1,48 +1,118 @@
-/* Main styles for the Digital Twin Visualization Comparison Dashboard */
+/* Modern Dark Theme for Digital Twin Visualization Comparison Dashboard */
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+:root {
+    /* Color Palette */
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --bg-tertiary: #2d2d2d;
+    --bg-card: #252525;
+    --accent-primary: #7b68ee; /* SlateBlue */
+    --accent-secondary: #9370db; /* MediumPurple */
+    --accent-hover: #b19cd9;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-muted: #6c757d;
+    --border-color: #3a3a3a;
+    --success-color: #4ade80;
+    --warning-color: #fbbf24;
+    --danger-color: #f87171;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 12px;
+}
+
+/* Reset & Base Styles */
+* {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    background-color: #f8f9fa;
-    color: #333;
 }
 
-header {
-    background-color: #343a40;
-    color: white;
-    padding: 1rem;
-    text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+html {
+    scroll-behavior: smooth;
+    overflow-x: hidden;
 }
 
-h1, h2 {
+body {
+    font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* Typography Enhancements */
+h1, h2, h3 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
     margin: 0;
     padding: 0.5rem 0;
 }
 
+h1 {
+    font-size: 1.75rem;
+}
+
+h2 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+/* Header - Fixed position to prevent scrolling issues */
+header {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 1rem 0;
+    text-align: center;
+    box-shadow: var(--shadow-md);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: 4rem; /* Fixed height to ensure consistency */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Main container adjustment for fixed header */
 .container {
     display: flex;
     height: calc(100vh - 4rem);
+    width: 100%;
 }
 
 /* Sidebar Styles */
 .sidebar {
-    width: 300px;
-    background-color: #f0f0f0;
-    padding: 1rem;
+    width: 320px;
+    background-color: var(--bg-secondary);
+    padding: 1.25rem;
     overflow-y: auto;
-    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    border-right: 1px solid var(--border-color);
 }
 
-.framework-selector, .digital-twin-selector, .metrics-panel, .digital-twin-controller {
+.framework-selector, 
+.digital-twin-selector, 
+.metrics-panel, 
+.digital-twin-controller {
     margin-bottom: 1.5rem;
-    padding: 1rem;
-    background-color: white;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 1.25rem;
+    background-color: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
 }
 
+/* Framework Selection */
 .framework-list {
     list-style-type: none;
     padding: 0;
@@ -51,95 +121,147 @@ h1, h2 {
 
 .framework-list li {
     padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    background-color: #e9ecef;
-    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    font-weight: 500;
 }
 
 .framework-list li:hover {
-    background-color: #dee2e6;
+    background-color: var(--bg-tertiary);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
 }
 
 .framework-list li.active {
-    background-color: #007bff;
-    color: white;
+    background-color: var(--accent-primary);
+    color: #ffffff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
+/* Metrics Panel */
 .metric {
     display: flex;
     justify-content: space-between;
-    margin: 0.5rem 0;
-    padding: 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: 4px;
+    align-items: center;
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-primary);
 }
 
 .metric-name {
-    font-weight: bold;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .metric-value {
-    font-family: monospace;
+    font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+    background-color: rgba(123, 104, 238, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    color: var(--accent-primary);
 }
 
+/* Controls */
 .control {
-    margin: 1rem 0;
+    margin: 1.25rem 0;
 }
 
 .control label {
     display: block;
     margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .control input[type="range"] {
     width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    outline: none;
+    cursor: pointer;
+}
+
+.control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.control input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--accent-hover);
+    transform: scale(1.1);
 }
 
 select, input {
     width: 100%;
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin: 0.25rem 0 1rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.2s;
+    font-size: 1rem;
+}
+
+select:focus, input:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(123, 104, 238, 0.25);
 }
 
 .btn {
     display: block;
     width: 100%;
     padding: 0.75rem;
-    background-color: #007bff;
+    background-color: var(--accent-primary);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    margin-top: 1rem;
+    margin-top: 1.25rem;
     font-size: 1rem;
-    transition: background-color 0.2s;
+    font-weight: 500;
+    transition: all 0.2s;
 }
 
 .btn:hover {
-    background-color: #0069d9;
+    background-color: var(--accent-secondary);
+    transform: translateY(-1px);
 }
 
-/* Added style for the "Changes take effect immediately" note */
+.btn:active {
+    transform: translateY(0);
+}
+
+/* Control Note */
 .control-note {
     font-size: 0.9rem;
-    color: #6c757d;
+    color: var(--text-secondary);
     font-style: italic;
     margin: 0.5rem 0;
-    padding: 0.5rem;
-    background-color: #e9f5ff;
-    border-left: 3px solid #007bff;
-    border-radius: 0 4px 4px 0;
+    padding: 0.75rem;
+    background-color: rgba(123, 104, 238, 0.1);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 /* Visualization Container */
 .visualization-container {
     flex-grow: 1;
     position: relative;
-    background-color: #343a40;
+    background-color: var(--bg-primary);
 }
 
 #framework-container {
@@ -152,9 +274,30 @@ select, input {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 1rem 2rem;
-    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: var(--text-primary);
+    padding: 1.25rem 2rem;
+    border-radius: var(--radius-md);
     text-align: center;
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-secondary);
 }

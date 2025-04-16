@@ -40,6 +40,85 @@ def get_auth_header():
     
     return {"Authorization": f"Basic {auth_b64}"}
 
+def wait_for_ditto(ditto_url="http://localhost:8080", timeout=120, interval=5):
+    """
+    Wait for Ditto to become available by repeatedly checking its health endpoints
+    
+    Args:
+        ditto_url: Base URL of the Ditto instance
+        timeout: Maximum time to wait in seconds
+        interval: Time between checks in seconds
+    
+    Returns:
+        bool: True if Ditto becomes available, False if timeout is reached
+    """
+    print_step(f"Waiting for Ditto to become available (may take up to {timeout}s)")
+    
+    auth_headers = get_auth_header()
+    headers = {
+        "Content-Type": "application/json",
+        **auth_headers
+    }
+    
+    # Use Ditto's API endpoint for health check
+    health_url = f"{ditto_url}/api/2/things"
+    start_time = time.time()
+    
+    # Initialize progress indicator
+    sys.stdout.write("  Progress: ")
+    sys.stdout.flush()
+    
+    first_check = True
+    dots_count = 0
+    
+    while time.time() - start_time < timeout:
+        try:
+            # Show progress indicator
+            if not first_check:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+                dots_count += 1
+                
+                # Add elapsed time every 10 dots
+                if dots_count % 10 == 0:
+                    elapsed = int(time.time() - start_time)
+                    sys.stdout.write(f" {elapsed}s ")
+                    sys.stdout.flush()
+            else:
+                first_check = False
+            
+            # Try to access the things API
+            response = requests.get(health_url, headers=headers, timeout=5)
+            
+            if response.status_code == 200:
+                elapsed = int(time.time() - start_time)
+                sys.stdout.write(f" done ({elapsed}s)\n")
+                sys.stdout.flush()
+                print_success(f"Ditto is now available")
+                # Wait a bit more to ensure all services are fully initialized
+                time.sleep(2)
+                return True
+                
+        except requests.exceptions.ConnectionError:
+            pass
+            
+        except requests.exceptions.Timeout:
+            pass
+            
+        except requests.exceptions.RequestException:
+            pass
+            
+        time.sleep(interval)
+    
+    # Add a newline after the progress indicator
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+    
+    print_error(f"Timeout reached after {timeout} seconds. Ditto is still not available.")
+    print_warning("Check Docker logs with: docker logs -f docker-gateway-1")
+    print_warning("Or try restarting with: ./setup.py restart")
+    return False
+
 def create_mixer_digital_twin(ditto_url="http://localhost:8080"):
     """Create the Mixer digital twin if it doesn't exist"""
     thing_id = "org.eclipse.ditto:Mixer"
@@ -227,6 +306,7 @@ def main() -> None:
     parser.add_argument('--skip-ditto', action='store_true', help='Skip starting Ditto (for development)')
     parser.add_argument('--config', default='setup.yaml', help='Path to the configuration file')
     parser.add_argument('--ditto-url', default='http://localhost:8080', help='Ditto API URL')
+    parser.add_argument('--ditto-timeout', type=int, default=180, help='Maximum time in seconds to wait for Ditto to start')
     
     args = parser.parse_args()
     
@@ -240,8 +320,13 @@ def main() -> None:
     
     # Execute the requested action
     if args.action == 'create-twin':
-        # Create the digital twin directly without executing other steps
-        if not create_mixer_digital_twin(args.ditto_url):
+        # Wait for Ditto to be available first
+        if wait_for_ditto(args.ditto_url, args.ditto_timeout):
+            # Create the digital twin directly without executing other steps
+            if not create_mixer_digital_twin(args.ditto_url):
+                sys.exit(1)
+        else:
+            print_error("Ditto is not available, cannot create digital twin")
             sys.exit(1)
             
     elif args.action == 'dev-server':
@@ -254,11 +339,17 @@ def main() -> None:
             if not execute_setup_phase(config, 'setup'):
                 sys.exit(1)
                 
-            # Wait a moment for Ditto to fully start up
-            print_step("Waiting for Ditto to initialize...")
-            time.sleep(5)
+            # Wait for Ditto to be fully available
+            if not wait_for_ditto(args.ditto_url, args.ditto_timeout):
+                print_error("Failed to start Ditto properly. Check Docker container logs for errors.")
+                print_warning("You can try again or use './setup.py stop' to clean up.")
+                sys.exit(1)
         else:
             print_warning("Skipping Ditto setup as requested")
+            # Still wait for Ditto to be available
+            if not wait_for_ditto(args.ditto_url, args.ditto_timeout):
+                print_error("Ditto is not available, cannot create digital twin")
+                sys.exit(1)
             
         # Now create the digital twin regardless of whether we started Ditto
         create_mixer_digital_twin(args.ditto_url)
@@ -276,9 +367,11 @@ def main() -> None:
         if not execute_setup_phase(config, 'setup'):
             sys.exit(1)
             
-        # Wait a moment for Ditto to fully restart
-        print_step("Waiting for Ditto to initialize...")
-        time.sleep(5)
+        # Wait for Ditto to be fully available
+        if not wait_for_ditto(args.ditto_url, args.ditto_timeout):
+            print_error("Failed to restart Ditto properly. Check Docker container logs for errors.")
+            print_warning("You can try again or use './setup.py stop' to clean up.")
+            sys.exit(1)
         
         # Now create the digital twin
         create_mixer_digital_twin(args.ditto_url)
