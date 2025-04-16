@@ -33,8 +33,6 @@ shutdown:
 # Useful URLs
 urls:
   dashboard: "http://localhost:8000/3d-visualization-comparison/dashboard.html"
-  threejs_test: "http://localhost:8000/3d-visualization-comparison/test-threejs.html"
-  babylonjs_test: "http://localhost:8000/3d-visualization-comparison/test-babylonjs.html"
   ditto_ui: "http://localhost:8080/ui/"
   ditto_api: "http://localhost:8080/api/2/"
 
