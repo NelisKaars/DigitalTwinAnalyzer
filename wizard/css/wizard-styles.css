@@ -1,0 +1,217 @@
+/* Modern Dark Theme for Digital Twin Visualization Selector */
+
+:root {
+    /* Color Palette - Matching the dashboard dark theme */
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --bg-tertiary: #2d2d2d;
+    --bg-card: #252525;
+    --accent-primary: #7b68ee; /* SlateBlue */
+    --accent-secondary: #9370db; /* MediumPurple */
+    --accent-hover: #b19cd9;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-muted: #6c757d;
+    --border-color: #3a3a3a;
+    --success-color: #4ade80;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 12px;
+}
+
+/* Reset & Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 30px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--accent-primary);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+.step {
+    display: none;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.step.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.path-display {
+    margin-bottom: 30px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: 15px;
+    border: 1px solid var(--border-color);
+}
+
+.path-item {
+    padding: 12px;
+    margin-bottom: 10px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.path-question {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.path-answer {
+    font-weight: 600;
+    margin-left: 15px;
+    color: var(--accent-primary);
+    background-color: rgba(123, 104, 238, 0.1);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.option-btn {
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-align: left;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+}
+
+.option-btn:hover {
+    background: rgba(123, 104, 238, 0.1);
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.option-btn:active {
+    transform: translateY(0);
+}
+
+.question {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: var(--text-primary);
+    letter-spacing: -0.025em;
+    line-height: 1.4;
+}
+
+.result {
+    background: rgba(74, 222, 128, 0.1);
+    padding: 24px;
+    border-radius: var(--radius-md);
+    margin-top: 20px;
+    text-align: center;
+    border: 1px solid var(--success-color);
+}
+
+.result-text {
+    color: var(--success-color);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+
+.restart-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    margin-top: 24px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.restart-btn:hover {
+    background: var(--accent-secondary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.restart-btn:active {
+    transform: translateY(0);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body {
+        padding: 15px;
+    }
+    
+    .container {
+        padding: 20px;
+    }
+}

@@ -35,7 +35,7 @@ An interactive tool that helps you select the most appropriate visualization tec
 
 Integration with Eclipse Ditto for digital twin data management:
 
-- Docker-based deployment of Ditto
+- Different ways of deploying Ditto (Docker, Kubernetes, HELM, etc.)
 - REST API access for digital twin state management
 - Real-time data updates
 

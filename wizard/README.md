@@ -27,10 +27,8 @@ The wizard provides guidance on selecting between various visualization approach
 - **Computer-Aided Design (CAD)** - Traditional 3D modeling visualization
 - **Augmented Reality (AR)** - Overlaying digital information on the physical world
 - **Virtual Reality (VR)** - Fully immersive digital environments
-- **Mixed Reality (MR)** - Blending of physical and digital worlds
 - **Neural Rendering** - ML-based novel view synthesis
 - **Point Cloud Visualization** - Direct visualization of sensor data
-- **2D Data Visualization** - Charts, graphs for data-focused visualizations
 - **Simulation-Based Visualization** - Physics-based interactive simulations
 
 ## Decision Criteria
