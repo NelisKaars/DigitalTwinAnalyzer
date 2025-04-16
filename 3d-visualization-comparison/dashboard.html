@@ -23,14 +23,6 @@
                 </ul>
             </div>
             
-            <div class="digital-twin-selector">
-                <h2>Digital Twin Model</h2>
-                <select id="dt-model-selector">
-                    <option value="mixer">Cookie Factory Mixer</option>
-                    <option value="factory">Full Factory</option>
-                </select>
-            </div>
-            
             <div class="metrics-panel">
                 <h2>Performance Metrics</h2>
                 <div class="metric">
@@ -55,16 +47,32 @@
             <div class="digital-twin-controller">
                 <h2>Digital Twin Controls</h2>
                 <p class="control-note">Changes take effect immediately</p>
+                
+                <div class="control">
+                    <label for="factory-mixer-selector">Select Mixer:</label>
+                    <select id="factory-mixer-selector">
+                        <option value="all">All Mixers</option>
+                        <option value="Mixer_0">Mixer 0</option>
+                        <option value="Mixer_1">Mixer 1</option>
+                        <option value="Mixer_2">Mixer 2</option>
+                        <option value="Mixer_3">Mixer 3</option>
+                        <option value="Mixer_4">Mixer 4</option>
+                        <option value="Mixer_5">Mixer 5</option>
+                    </select>
+                </div>
+                
                 <div class="control">
                     <label for="temp-control">Temperature:</label>
                     <input type="range" id="temp-control" min="0" max="200" value="100">
                     <span id="temp-value">100°C</span>
                 </div>
+                
                 <div class="control">
                     <label for="rpm-control">RPM:</label>
                     <input type="range" id="rpm-control" min="0" max="120" value="60">
                     <span id="rpm-value">60</span>
                 </div>
+                
                 <div class="control">
                     <label for="alarm-status">Alarm Status:</label>
                     <select id="alarm-status">
@@ -72,6 +80,12 @@
                         <option value="ACTIVE">ACTIVE</option>
                         <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
                     </select>
+                </div>
+                
+                <div class="control">
+                    <label for="water-flow-control">Water Tank Flow Rate:</label>
+                    <input type="range" id="water-flow-control" min="0" max="100" value="35">
+                    <span id="water-flow-value">35</span>
                 </div>
             </div>
         </div>

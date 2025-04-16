@@ -147,28 +147,53 @@ const DittoAPI = {
 const ModelLoader = {
     // Get the correct model path based on the selected framework and model
     getModelPath(framework, modelId) {
-        const basePath = '../models/';
+        // Updated paths to use the local models directory
+        const factoryPath = '../models/CookieFactory/';
+        const localPath = '../models/';
         
-        const modelMap = {
-            'mixer': {
-                'threejs': 'CookieFactoryMixer.glb',
-                'babylonjs': 'CookieFactoryMixer.glb',
-                'unity': 'CookieFactoryMixer.fbx'
-            },
-            'factory': {
-                'threejs': 'CookieFactory.glb',
-                'babylonjs': 'CookieFactory.glb',
-                'unity': 'CookieFactory.fbx'
+        if (modelId === 'factory') {
+            // For factory, we need to load the full scene definition
+            return {
+                sceneDefinition: `${factoryPath}CookieFactory.json`,
+                models: {
+                    environment: `${factoryPath}CookieFactoryEnvironment.glb`,
+                    mixer: `${factoryPath}CookieFactoryMixer.glb`,
+                    line: `${factoryPath}CookieFactoryLine.glb`,
+                    waterTank: `${factoryPath}CookieFactoryWaterTank.glb`
+                }
+            };
+        } else {
+            // For single models
+            const modelMap = {
+                'mixer': {
+                    'threejs': `${localPath}CookieFactoryMixer.glb`,
+                    'babylonjs': `${localPath}CookieFactoryMixer.glb`,
+                    'unity': `${localPath}CookieFactoryMixer.fbx`
+                }
+            };
+            
+            if (modelMap[modelId] && modelMap[modelId][framework]) {
+                return modelMap[modelId][framework];
             }
-        };
-        
-        if (modelMap[modelId] && modelMap[modelId][framework]) {
-            return basePath + modelMap[modelId][framework];
+            
+            // Default to Mixer model for Three.js if not found
+            console.warn(`Model path not found for ${framework}/${modelId}, using default`);
+            return `${localPath}CookieFactoryMixer.glb`;
         }
-        
-        // Default to Mixer model for Three.js if not found
-        console.warn(`Model path not found for ${framework}/${modelId}, using default`);
-        return basePath + 'CookieFactoryMixer.glb';
+    },
+    
+    // Load the scene definition JSON file
+    async loadSceneDefinition(url) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error loading scene definition:', error);
+            return null;
+        }
     },
     
     // Future: Add more utility methods for handling model loading, animations, etc.
@@ -217,5 +242,62 @@ const DTProperties = {
             default:
                 return { color: 0x0000ff, blinking: false };
         }
+    },
+    
+    // Map water flow rate to visual indicators
+    mapWaterFlowRate(rate) {
+        // Water flow rate mapping (used for water tank in factory view)
+        return {
+            flowSpeed: rate / 40, // normalized flow speed
+            color: rate > 40 ? 0xff0000 : 0x00ff00, // red if over threshold, otherwise green
+            intensity: Math.min(1.0, rate / 80) // normalized intensity
+        };
+    }
+};
+
+// Factory scene helper - provides utilities for working with the factory scene
+const FactoryScene = {
+    // Parse the CookieFactory.json scene and extract key information
+    parseSceneDefinition(sceneData) {
+        if (!sceneData || !sceneData.nodes) {
+            console.error('Invalid scene data');
+            return null;
+        }
+        
+        // Extract all mixers, water tanks, and other components
+        const components = {
+            rootNode: sceneData.nodes[0],
+            environment: null,
+            mixers: [],
+            waterTank: null,
+            cookieLines: []
+        };
+        
+        // Process each node in the scene
+        sceneData.nodes.forEach(node => {
+            // Check node type based on name and components
+            if (node.name === 'Environment') {
+                components.environment = node;
+            } else if (node.name.startsWith('Mixer_')) {
+                components.mixers.push(node);
+            } else if (node.name === 'WaterTank') {
+                components.waterTank = node;
+            } else if (node.name.startsWith('COOKIE_LINE')) {
+                components.cookieLines.push(node);
+            }
+        });
+        
+        return components;
+    },
+    
+    // Get transformation data for a specific node
+    getNodeTransform(node) {
+        if (!node || !node.transform) return null;
+        
+        return {
+            position: node.transform.position || [0, 0, 0],
+            rotation: node.transform.rotation || [0, 0, 0],
+            scale: node.transform.scale || [1, 1, 1]
+        };
     }
 };

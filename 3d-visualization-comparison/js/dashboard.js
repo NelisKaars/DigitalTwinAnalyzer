@@ -6,13 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Dashboard state
     const dashboardState = {
         currentFramework: 'threejs',
-        currentModel: 'mixer',
+        currentModel: 'factory', // Always use the factory model
         frameworkInstances: {},
         activeInstance: null,
         loadedLibraries: {}, // Track which framework libraries have been loaded
         isUserInteracting: false, // Flag to track user interaction with controls
         userInteractionTimeout: null, // Timeout for user interaction
-        controlUpdateTimeout: null // Debounce timer for control updates
+        controlUpdateTimeout: null, // Debounce timer for control updates
+        selectedMixer: 'all' // Selected mixer in factory view
     };
     
     // Framework library dependencies
@@ -49,11 +50,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
-        // Digital twin model selection
-        document.getElementById('dt-model-selector').addEventListener('change', (e) => {
-            const modelId = e.target.value;
-            changeDigitalTwinModel(modelId);
-        });
+        // Factory mixer selector
+        const factoryMixerSelector = document.getElementById('factory-mixer-selector');
+        if (factoryMixerSelector) {
+            factoryMixerSelector.addEventListener('change', (e) => {
+                dashboardState.selectedMixer = e.target.value;
+                
+                // Update UI to show current values for selected mixer
+                if (dashboardState.activeInstance && dashboardState.activeInstance.focusOnMixer) {
+                    dashboardState.activeInstance.focusOnMixer(dashboardState.selectedMixer);
+                }
+                
+                // Update UI controls to reflect the selected mixer's values
+                DittoAPI.getTwinState().then(state => {
+                    updateDashboardUI(state);
+                });
+            });
+        }
         
         // Control sliders for temperature with auto-update
         const tempControl = document.getElementById('temp-control');
@@ -66,14 +79,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Debounce the update
             debounceControlUpdate(() => {
-                DittoAPI.updateProperty('Mixer', 'Temperature', parseInt(value));
+                updateFactoryMixerTemperature(value);
             });
         });
         
         // When user stops interacting with the temperature slider
         tempControl.addEventListener('change', () => {
             // Update immediately at the end of the slider movement
-            DittoAPI.updateProperty('Mixer', 'Temperature', parseInt(tempControl.value));
+            updateFactoryMixerTemperature(tempControl.value);
             endUserInteraction();
         });
         
@@ -88,27 +101,103 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Debounce the update
             debounceControlUpdate(() => {
-                DittoAPI.updateProperty('Mixer', 'RPM', parseInt(value));
+                updateFactoryMixerRPM(value);
             });
         });
         
         // When user stops interacting with the RPM slider
         rpmControl.addEventListener('change', () => {
             // Update immediately at the end of the slider movement
-            DittoAPI.updateProperty('Mixer', 'RPM', parseInt(rpmControl.value));
+            updateFactoryMixerRPM(rpmControl.value);
             endUserInteraction();
         });
         
         // Alarm status dropdown with auto-update
         const alarmControl = document.getElementById('alarm-status');
         alarmControl.addEventListener('change', (e) => {
-            DittoAPI.updateProperty('Alarm', 'alarm_status', e.target.value);
+            updateFactoryAlarmStatus(e.target.value);
         });
+        
+        // Water flow control for factory
+        const waterFlowControl = document.getElementById('water-flow-control');
+        if (waterFlowControl) {
+            waterFlowControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('water-flow-value').textContent = value;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(value));
+                });
+            });
+            
+            waterFlowControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(waterFlowControl.value));
+                endUserInteraction();
+            });
+        }
         
         // Download metrics CSV
         document.getElementById('download-metrics').addEventListener('click', () => {
             MetricsCollector.downloadCSV();
         });
+    }
+    
+    /**
+     * Update temperature for selected factory mixer(s)
+     * @param {string|number} value - Temperature value
+     */
+    function updateFactoryMixerTemperature(value) {
+        const selectedMixer = dashboardState.selectedMixer;
+        const tempValue = parseInt(value);
+        
+        if (selectedMixer === 'all') {
+            // Update all mixers (this is a simplified example - you might want to update only visible ones)
+            for (let i = 0; i < 6; i++) {
+                DittoAPI.updateProperty(`Mixer_${i}`, 'Temperature', tempValue);
+            }
+        } else {
+            // Update only the selected mixer
+            DittoAPI.updateProperty(selectedMixer, 'Temperature', tempValue);
+        }
+    }
+    
+    /**
+     * Update RPM for selected factory mixer(s)
+     * @param {string|number} value - RPM value
+     */
+    function updateFactoryMixerRPM(value) {
+        const selectedMixer = dashboardState.selectedMixer;
+        const rpmValue = parseInt(value);
+        
+        if (selectedMixer === 'all') {
+            // Update all mixers
+            for (let i = 0; i < 6; i++) {
+                DittoAPI.updateProperty(`Mixer_${i}`, 'RPM', rpmValue);
+            }
+        } else {
+            // Update only the selected mixer
+            DittoAPI.updateProperty(selectedMixer, 'RPM', rpmValue);
+        }
+    }
+    
+    /**
+     * Update alarm status for selected factory mixer(s)
+     * @param {string} status - Alarm status
+     */
+    function updateFactoryAlarmStatus(status) {
+        const selectedMixer = dashboardState.selectedMixer;
+        
+        if (selectedMixer === 'all') {
+            // Update all mixers
+            for (let i = 0; i < 6; i++) {
+                DittoAPI.updateProperty(`Mixer_${i}_AlarmComponent`, 'alarm_status', status);
+            }
+        } else {
+            // Update only the selected mixer
+            DittoAPI.updateProperty(`${selectedMixer}_AlarmComponent`, 'alarm_status', status);
+        }
     }
     
     /**
@@ -321,6 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Stop any existing polling
         DittoAPI.stopPolling();
         
+        // Ensure we're using the Factory thing
+        DittoAPI.setDigitalTwinModel('factory');
+        
         // Start polling and send updates to the framework
         DittoAPI.startPolling((state) => {
             // Only update UI from polling if user is not interacting with controls
@@ -340,63 +432,45 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {object} twinState - Current state of the digital twin
      */
     function updateDashboardUI(twinState) {
-        // Update temperature slider (only if not being manipulated)
-        if (twinState.features?.Mixer?.properties?.Temperature !== undefined && !dashboardState.isUserInteracting) {
-            const temp = parseFloat(twinState.features.Mixer.properties.Temperature);
+        // Determine which mixer to display data for in the UI
+        let selectedMixerPrefix = dashboardState.selectedMixer;
+        
+        if (selectedMixerPrefix === 'all') {
+            // Default to Mixer_0 for displaying values when "all" is selected
+            selectedMixerPrefix = 'Mixer_0';
+        }
+        
+        // Update temperature slider
+        if (twinState.features?.[selectedMixerPrefix]?.properties?.Temperature !== undefined && !dashboardState.isUserInteracting) {
+            const temp = parseFloat(twinState.features[selectedMixerPrefix].properties.Temperature);
             document.getElementById('temp-control').value = temp;
             document.getElementById('temp-value').textContent = `${temp}°C`;
         }
         
-        // Update RPM slider (only if not being manipulated)
-        if (twinState.features?.Mixer?.properties?.RPM !== undefined && !dashboardState.isUserInteracting) {
-            const rpm = parseFloat(twinState.features.Mixer.properties.RPM);
+        // Update RPM slider
+        if (twinState.features?.[selectedMixerPrefix]?.properties?.RPM !== undefined && !dashboardState.isUserInteracting) {
+            const rpm = parseFloat(twinState.features[selectedMixerPrefix].properties.RPM);
             document.getElementById('rpm-control').value = rpm;
             document.getElementById('rpm-value').textContent = rpm;
         }
         
-        // Update alarm status dropdown (only if not being manipulated)
-        if (twinState.features?.Alarm?.properties?.alarm_status !== undefined && !dashboardState.isUserInteracting) {
-            const status = twinState.features.Alarm.properties.alarm_status;
+        // Update alarm status dropdown
+        const alarmComponentName = `${selectedMixerPrefix}_AlarmComponent`;
+        if (twinState.features?.[alarmComponentName]?.properties?.alarm_status !== undefined && !dashboardState.isUserInteracting) {
+            const status = twinState.features[alarmComponentName].properties.alarm_status;
             document.getElementById('alarm-status').value = status;
         }
-    }
-    
-    /**
-     * Apply changes from UI controls to the digital twin
-     * This is kept for the Apply Changes button
-     */
-    async function applyDigitalTwinChanges() {
-        const temperatureValue = parseInt(document.getElementById('temp-control').value);
-        const rpmValue = parseInt(document.getElementById('rpm-control').value);
-        const alarmStatus = document.getElementById('alarm-status').value;
         
-        // Update temperature
-        await DittoAPI.updateProperty('Mixer', 'Temperature', temperatureValue);
-        
-        // Update RPM
-        await DittoAPI.updateProperty('Mixer', 'RPM', rpmValue);
-        
-        // Update alarm status
-        await DittoAPI.updateProperty('Alarm', 'alarm_status', alarmStatus);
-    }
-    
-    /**
-     * Change the digital twin model
-     * @param {string} modelId - ID of the model to load (mixer, factory, etc.)
-     */
-    function changeDigitalTwinModel(modelId) {
-        // Update state
-        dashboardState.currentModel = modelId;
-        
-        // Update Ditto API to point to the correct digital twin
-        DittoAPI.setDigitalTwinModel(modelId);
-        
-        // Reload the current framework with the new model
-        if (dashboardState.activeInstance && dashboardState.activeInstance.changeModel) {
-            dashboardState.activeInstance.changeModel(modelId);
-        } else {
-            // If the framework doesn't support model changing directly, reload it
-            loadFramework(dashboardState.currentFramework);
+        // Update water flow rate
+        if (twinState.features?.WaterTank?.properties?.flowRate1 !== undefined && !dashboardState.isUserInteracting) {
+            const flowRate = parseFloat(twinState.features.WaterTank.properties.flowRate1);
+            const waterFlowControl = document.getElementById('water-flow-control');
+            const waterFlowValue = document.getElementById('water-flow-value');
+            
+            if (waterFlowControl && waterFlowValue) {
+                waterFlowControl.value = flowRate;
+                waterFlowValue.textContent = flowRate;
+            }
         }
     }
 });

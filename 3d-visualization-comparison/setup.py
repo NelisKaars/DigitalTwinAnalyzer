@@ -119,9 +119,9 @@ def wait_for_ditto(ditto_url="http://localhost:8080", timeout=120, interval=5):
     print_warning("Or try restarting with: ./setup.py restart")
     return False
 
-def create_mixer_digital_twin(ditto_url="http://localhost:8080"):
-    """Create the Mixer digital twin if it doesn't exist"""
-    thing_id = "org.eclipse.ditto:Mixer"
+def create_factory_digital_twin(ditto_url="http://localhost:8080"):
+    """Create the Factory digital twin if it doesn't exist"""
+    thing_id = "org.eclipse.ditto:Factory"
     url = f"{ditto_url}/api/2/things/{thing_id}"
     
     # Get authentication headers with default credentials
@@ -138,42 +138,60 @@ def create_mixer_digital_twin(ditto_url="http://localhost:8080"):
         
         if response.status_code == 404:
             # Thing doesn't exist, create it
-            print_step("Creating Mixer digital twin...")
-            mixer_thing = {
-                "thingId": thing_id,
-                "features": {
-                    "Mixer": {
-                        "properties": {
-                            "Temperature": 100,
-                            "RPM": 60
-                        }
-                    },
-                    "Alarm": {
-                        "properties": {
-                            "alarm_status": "NORMAL"
-                        }
+            print_step("Creating Factory digital twin...")
+            
+            # Create features for multiple mixers
+            features = {}
+            
+            # Add 6 mixers with properties
+            for i in range(6):
+                mixer_id = f"Mixer_{i}"
+                # Each mixer has temperature and RPM
+                features[mixer_id] = {
+                    "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
                     }
+                }
+                
+                # Each mixer also has an alarm component
+                features[f"{mixer_id}_AlarmComponent"] = {
+                    "properties": {
+                        "alarm_status": "NORMAL"
+                    }
+                }
+            
+            # Add water tank with flow rate
+            features["WaterTank"] = {
+                "properties": {
+                    "flowRate1": 35
                 }
             }
             
-            create_response = requests.put(url, data=json.dumps(mixer_thing), headers=headers)
+            # Create the factory digital twin with all features
+            factory_thing = {
+                "thingId": thing_id,
+                "features": features
+            }
+            
+            create_response = requests.put(url, data=json.dumps(factory_thing), headers=headers)
             
             if create_response.status_code in (201, 204):
-                print_success(f"Successfully created Mixer digital twin")
+                print_success(f"Successfully created Factory digital twin with 6 mixers and water tank")
                 return True
             else:
-                print_error(f"Failed to create Mixer digital twin: Status code {create_response.status_code}")
+                print_error(f"Failed to create Factory digital twin: Status code {create_response.status_code}")
                 print(f"Response: {create_response.text}")
                 return False
         elif response.status_code == 200:
-            print_success("Mixer digital twin already exists")
+            print_success("Factory digital twin already exists")
             return True
         else:
-            print_error(f"Error checking if digital twin exists: Status code {response.status_code}")
+            print_error(f"Error checking if Factory digital twin exists: Status code {response.status_code}")
             print(f"Response: {response.text}")
             return False
     except Exception as e:
-        print_error(f"Error checking if digital twin exists: {str(e)}")
+        print_error(f"Error checking if Factory digital twin exists: {str(e)}")
         return False
 
 def print_header(text: str) -> None:
@@ -322,8 +340,8 @@ def main() -> None:
     if args.action == 'create-twin':
         # Wait for Ditto to be available first
         if wait_for_ditto(args.ditto_url, args.ditto_timeout):
-            # Create the digital twin directly without executing other steps
-            if not create_mixer_digital_twin(args.ditto_url):
+            # Create factory digital twin
+            if not create_factory_digital_twin(args.ditto_url):
                 sys.exit(1)
         else:
             print_error("Ditto is not available, cannot create digital twin")
@@ -351,8 +369,8 @@ def main() -> None:
                 print_error("Ditto is not available, cannot create digital twin")
                 sys.exit(1)
             
-        # Now create the digital twin regardless of whether we started Ditto
-        create_mixer_digital_twin(args.ditto_url)
+        # Create factory digital twin
+        create_factory_digital_twin(args.ditto_url)
         
         # Show URLs and remind user to start the dev server
         show_urls(config)
@@ -373,8 +391,8 @@ def main() -> None:
             print_warning("You can try again or use './setup.py stop' to clean up.")
             sys.exit(1)
         
-        # Now create the digital twin
-        create_mixer_digital_twin(args.ditto_url)
+        # Create factory digital twin
+        create_factory_digital_twin(args.ditto_url)
         
         # Show URLs and remind user to start the dev server
         show_urls(config)
