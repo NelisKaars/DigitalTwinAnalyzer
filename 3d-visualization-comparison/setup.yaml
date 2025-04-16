@@ -1,0 +1,61 @@
+# Digital Twin Visualization Setup Pipeline
+# This file defines all the commands needed to set up the environment
+
+version: "1.0"
+
+# Environment setup steps
+setup:
+  # Start Eclipse Ditto backend
+  ditto:
+    description: "Start Eclipse Ditto backend services using Docker Compose"
+    commands:
+      - cd ../ditto-master/deployment/docker && docker compose up -d
+    check_command: "docker ps | grep ditto"
+    success_message: "Ditto services started successfully"
+    failure_message: "Failed to start Ditto services"
+
+# Dev server is handled separately and not included in the setup phase
+
+# Shutdown steps
+shutdown:
+  # Stop Ditto services
+  stop_ditto:
+    description: "Stop Eclipse Ditto backend services"
+    commands:
+      - cd ../ditto-master/deployment/docker && docker compose down
+    success_message: "Ditto services stopped successfully"
+    failure_message: "Failed to stop Ditto services"
+
+  # Stop the local development server (needs to be done manually with Ctrl+C)
+  stop_dev_server:
+    description: "Stop the development server by pressing Ctrl+C in its terminal"
+
+# Useful URLs
+urls:
+  dashboard: "http://localhost:8000/3d-visualization-comparison/dashboard.html"
+  threejs_test: "http://localhost:8000/3d-visualization-comparison/test-threejs.html"
+  babylonjs_test: "http://localhost:8000/3d-visualization-comparison/test-babylonjs.html"
+  ditto_ui: "http://localhost:8080/ui/"
+  ditto_api: "http://localhost:8080/api/2/"
+
+# Required software
+requirements:
+  - "Docker and Docker Compose"
+  - "Python 3.6+"
+  - "Modern web browser (Chrome or Firefox recommended)"
+
+# Instructions
+instructions: |
+  To set up the environment:
+  
+  1. Run the command: ./setup.py start
+  2. In a separate terminal, run: ./setup.py dev-server
+  3. Access the dashboard at http://localhost:8000/3d-visualization-comparison/dashboard.html
+  4. Use the control panel to interact with the Digital Twin
+  
+  Other useful commands:
+  - ./setup.py dev-server - Start the development server
+  - ./setup.py stop - Stop Ditto services
+  - ./setup.py restart - Restart everything
+  - ./setup.py create-twin - Create the digital twin manually
+  - ./setup.py info - Show this information

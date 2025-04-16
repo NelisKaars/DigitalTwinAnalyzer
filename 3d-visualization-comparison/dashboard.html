@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin Visualization Comparison</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- We'll load framework-specific libraries dynamically -->
+</head>
+<body>
+    <header>
+        <h1>Digital Twin Visualization Framework Comparison</h1>
+    </header>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="framework-selector">
+                <h2>Select Framework</h2>
+                <ul class="framework-list">
+                    <li data-framework="threejs" class="active">Three.js</li>
+                    <li data-framework="babylonjs">Babylon.js</li>
+                    <li data-framework="unity">Unity WebGL</li>
+                </ul>
+            </div>
+            
+            <div class="digital-twin-selector">
+                <h2>Digital Twin Model</h2>
+                <select id="dt-model-selector">
+                    <option value="mixer">Cookie Factory Mixer</option>
+                    <option value="factory">Full Factory</option>
+                </select>
+            </div>
+            
+            <div class="metrics-panel">
+                <h2>Performance Metrics</h2>
+                <div class="metric">
+                    <span class="metric-name">FPS:</span>
+                    <span id="metric-fps" class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Memory:</span>
+                    <span id="metric-memory" class="metric-value">0 MB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Load Time:</span>
+                    <span id="metric-load-time" class="metric-value">0 ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Data Binding Latency:</span>
+                    <span id="metric-latency" class="metric-value">0 ms</span>
+                </div>
+                <button id="download-metrics" class="btn">Download Metrics CSV</button>
+            </div>
+            
+            <div class="digital-twin-controller">
+                <h2>Digital Twin Controls</h2>
+                <p class="control-note">Changes take effect immediately</p>
+                <div class="control">
+                    <label for="temp-control">Temperature:</label>
+                    <input type="range" id="temp-control" min="0" max="200" value="100">
+                    <span id="temp-value">100°C</span>
+                </div>
+                <div class="control">
+                    <label for="rpm-control">RPM:</label>
+                    <input type="range" id="rpm-control" min="0" max="120" value="60">
+                    <span id="rpm-value">60</span>
+                </div>
+                <div class="control">
+                    <label for="alarm-status">Alarm Status:</label>
+                    <select id="alarm-status">
+                        <option value="NORMAL">NORMAL</option>
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="visualization-container">
+            <div id="framework-container"></div>
+            <div id="loading-indicator">Loading visualization framework...</div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/metrics.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
