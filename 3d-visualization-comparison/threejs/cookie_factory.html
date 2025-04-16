@@ -68,7 +68,7 @@
                 Status: <span id="status" class="value normal">NORMAL</span>
             </div>
             <p>
-                <small>Connect to Eclipse Ditto to see live updates</small>
+                <small>Connected to Eclipse Ditto via HTTP API - Live updates every 2 seconds</small>
             </p>
         </div>
         <div id="loading">Loading 3D model...</div>
@@ -177,91 +177,74 @@
             document.getElementById('loading').textContent = 'Error loading 3D model!';
         });
 
-        // Connect to Ditto WebSocket for live updates (optional)
-        function connectToDitto() {
-            const wsUrl = 'ws://localhost:8080/ws/2';
-            const socket = new WebSocket(wsUrl);
+        // Add polling function to get updates from the HTTP API
+        function pollDittoState() {
+            const thingId = "org.eclipse.ditto:Mixer";
+            const apiUrl = `http://localhost:8080/api/2/things/${thingId}`;
             
-            socket.onopen = function() {
-                console.log('Connected to Ditto WebSocket');
-                
-                // Subscribe to changes for the Mixer thing
-                const subscribeMsg = {
-                    "topic": "org.eclipse.ditto/req-1/things/twin/commands/modify",
-                    "path": "/",
-                    "headers": {
-                        "content-type": "application/json"
-                    },
-                    "value": {
-                        "topic": "org.eclipse.ditto/Mixer/things/twin/commands/modify",
-                        "path": "/"
-                    }
-                };
-                socket.send(JSON.stringify(subscribeMsg));
-            };
+            // Basic auth credentials 
+            const headers = new Headers();
+            headers.set('Authorization', 'Basic ' + btoa('ditto:ditto'));
             
-            socket.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Received data:', data);
-                    
-                    // Check if this is a Mixer update
-                    if (data.topic && data.topic.includes('/Mixer/')) {
-                        // Extract properties
-                        const features = data.value?.features;
-                        if (features && features.Mixer) {
-                            const props = features.Mixer.properties;
-                            
-                            // Update mixer state
-                            if (props.Temperature) {
-                                mixerState.temperature = parseFloat(props.Temperature);
-                                document.getElementById('temperature').textContent = mixerState.temperature.toFixed(1);
-                            }
-                            
-                            if (props.RPM) {
-                                mixerState.rpm = parseFloat(props.RPM);
-                                document.getElementById('rpm').textContent = mixerState.rpm.toFixed(1);
-                            }
-                        }
-                        
-                        if (features && features.Alarm) {
-                            const props = features.Alarm.properties;
-                            
-                            if (props.alarm_status) {
-                                mixerState.status = props.alarm_status;
-                                const statusElement = document.getElementById('status');
-                                statusElement.textContent = mixerState.status;
-                                
-                                // Update CSS class based on status
-                                statusElement.className = 'value';
-                                if (mixerState.status === 'NORMAL') {
-                                    statusElement.classList.add('normal');
-                                } else if (mixerState.status === 'ACKNOWLEDGED') {
-                                    statusElement.classList.add('acknowledged');
-                                } else if (mixerState.status === 'ACTIVE') {
-                                    statusElement.classList.add('alarm');
-                                }
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error parsing WebSocket message:', e);
+            fetch(apiUrl, { 
+                method: 'GET',
+                headers: headers
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
-            };
-            
-            socket.onerror = function(error) {
-                console.error('WebSocket error:', error);
-            };
-            
-            socket.onclose = function() {
-                console.log('WebSocket connection closed');
-                // Try to reconnect after a delay
-                setTimeout(connectToDitto, 5000);
-            };
+                return response.json();
+            })
+            .then(data => {
+                console.log('Fetched thing data from HTTP API:', data);
+                
+                // Update temperature if available
+                if (data.features?.Mixer?.properties?.Temperature !== undefined) {
+                    const temp = parseFloat(data.features.Mixer.properties.Temperature);
+                    if (!isNaN(temp)) {
+                        mixerState.temperature = temp;
+                        document.getElementById('temperature').textContent = temp.toFixed(1);
+                    }
+                }
+                
+                // Update RPM if available
+                if (data.features?.Mixer?.properties?.RPM !== undefined) {
+                    const rpm = parseFloat(data.features.Mixer.properties.RPM);
+                    if (!isNaN(rpm)) {
+                        mixerState.rpm = rpm;
+                        document.getElementById('rpm').textContent = rpm.toFixed(1);
+                    }
+                }
+                
+                // Update status if available
+                if (data.features?.Alarm?.properties?.alarm_status !== undefined) {
+                    const status = data.features.Alarm.properties.alarm_status;
+                    mixerState.status = status;
+                    const statusElement = document.getElementById('status');
+                    statusElement.textContent = status;
+                    
+                    // Update CSS class based on status
+                    statusElement.className = 'value';
+                    if (status === 'NORMAL') {
+                        statusElement.classList.add('normal');
+                    } else if (status === 'ACKNOWLEDGED') {
+                        statusElement.classList.add('acknowledged');
+                    } else if (status === 'ACTIVE') {
+                        statusElement.classList.add('alarm');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching from Ditto API:', error);
+            });
         }
         
-        // Try to connect to Ditto (commented out by default, uncomment to enable)
-        // connectToDitto();
+        // Start polling every 2 seconds
+        const pollingInterval = setInterval(pollDittoState, 2000);
+        
+        // Initial poll
+        pollDittoState();
 
         // Animation loop
         let lastTime = 0;
