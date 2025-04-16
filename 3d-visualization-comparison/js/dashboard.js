@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateDashboardUI(state);
                 });
             });
-        }
+        };
         
         // Control sliders for temperature with auto-update
         const tempControl = document.getElementById('temp-control');
@@ -135,6 +135,37 @@ document.addEventListener('DOMContentLoaded', () => {
             waterFlowControl.addEventListener('change', () => {
                 DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(waterFlowControl.value));
                 endUserInteraction();
+            });
+        }
+        
+        // Water tank volume control for factory
+        const waterVolumeControl = document.getElementById('water-volume-control');
+        if (waterVolumeControl) {
+            waterVolumeControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('water-volume-value').textContent = `${value}%`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('WaterTank', 'tankVolume1', parseInt(value));
+                });
+            });
+            
+            waterVolumeControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('WaterTank', 'tankVolume1', parseInt(waterVolumeControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Toggle tag visibility
+        const toggleTagsCheckbox = document.getElementById('toggle-tags');
+        if (toggleTagsCheckbox) {
+            toggleTagsCheckbox.addEventListener('change', () => {
+                // Call the toggleTags method if it exists on the active framework
+                if (dashboardState.activeInstance && dashboardState.activeInstance.toggleTags) {
+                    dashboardState.activeInstance.toggleTags(toggleTagsCheckbox.checked);
+                }
             });
         }
         
@@ -470,6 +501,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (waterFlowControl && waterFlowValue) {
                 waterFlowControl.value = flowRate;
                 waterFlowValue.textContent = flowRate;
+            }
+        }
+        
+        // Update water tank volume
+        if (twinState.features?.WaterTank?.properties?.tankVolume1 !== undefined && !dashboardState.isUserInteracting) {
+            const tankVolume = parseFloat(twinState.features.WaterTank.properties.tankVolume1);
+            const waterVolumeControl = document.getElementById('water-volume-control');
+            const waterVolumeValue = document.getElementById('water-volume-value');
+            
+            if (waterVolumeControl && waterVolumeValue) {
+                waterVolumeControl.value = tankVolume;
+                waterVolumeValue.textContent = `${tankVolume}%`;
             }
         }
     }

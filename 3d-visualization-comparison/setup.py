@@ -161,10 +161,11 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                     }
                 }
             
-            # Add water tank with flow rate
+            # Add water tank with flow rate and tank volume
             features["WaterTank"] = {
                 "properties": {
-                    "flowRate1": 35
+                    "flowRate1": 35,
+                    "tankVolume1": 75  # Added tank volume property (percentage)
                 }
             }
             
@@ -185,6 +186,24 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                 return False
         elif response.status_code == 200:
             print_success("Factory digital twin already exists")
+            
+            # Check if we need to update the water tank to add tankVolume1 property
+            water_tank_url = f"{url}/features/WaterTank/properties/tankVolume1"
+            tank_response = requests.get(water_tank_url, headers=headers)
+            
+            if tank_response.status_code == 404:
+                # Need to add tankVolume1 property
+                print_step("Adding tankVolume1 property to existing WaterTank...")
+                tank_update = requests.put(
+                    water_tank_url,
+                    data=json.dumps(75),  # Initial value of 75%
+                    headers=headers
+                )
+                if tank_update.status_code in (201, 204):
+                    print_success("Added tankVolume1 property to WaterTank")
+                else:
+                    print_warning(f"Could not add tankVolume1 property: Status code {tank_update.status_code}")
+            
             return True
         else:
             print_error(f"Error checking if Factory digital twin exists: Status code {response.status_code}")

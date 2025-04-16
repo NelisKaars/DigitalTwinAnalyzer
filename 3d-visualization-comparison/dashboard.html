@@ -82,10 +82,27 @@
                     </select>
                 </div>
                 
-                <div class="control">
-                    <label for="water-flow-control">Water Tank Flow Rate:</label>
-                    <input type="range" id="water-flow-control" min="0" max="100" value="35">
-                    <span id="water-flow-value">35</span>
+                <div class="control-section">
+                    <h3>Water Tank Controls</h3>
+                    <div class="control">
+                        <label for="water-flow-control">Flow Rate:</label>
+                        <input type="range" id="water-flow-control" min="0" max="100" value="35">
+                        <span id="water-flow-value">35</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="water-volume-control">Tank Volume:</label>
+                        <input type="range" id="water-volume-control" min="0" max="100" value="75">
+                        <span id="water-volume-value">75%</span>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>Tag Options</h3>
+                    <div class="control">
+                        <label for="toggle-tags">Show Data Tags:</label>
+                        <input type="checkbox" id="toggle-tags" checked>
+                    </div>
                 </div>
             </div>
         </div>
