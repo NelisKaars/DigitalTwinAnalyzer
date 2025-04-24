@@ -301,3 +301,85 @@ select:focus, input:focus {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--accent-secondary);
 }
+
+/* Add to the end of the CSS file */
+
+/* Simulation Panel Styles */
+.simulation-panel {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    background-color: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+}
+
+.simulation-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin: 1rem 0;
+}
+
+.btn-primary {
+    background-color: var(--accent-primary);
+    color: white;
+    border: none;
+}
+
+.btn-secondary {
+    background-color: var(--warning-color);
+    color: white;
+    border: none;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+    border: none;
+}
+
+.btn-info {
+    background-color: var(--accent-secondary);
+    color: white;
+    border: none;
+}
+
+.btn:disabled {
+    background-color: var(--bg-tertiary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.simulation-status {
+    margin-top: 1rem;
+}
+
+.simulation-progress {
+    height: 12px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+#simulation-progress-fill {
+    height: 100%;
+    background-color: var(--accent-primary);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+#simulation-timer {
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.1em;
+    color: var(--text-primary);
+}
+
+.simulation-metrics {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-primary);
+}

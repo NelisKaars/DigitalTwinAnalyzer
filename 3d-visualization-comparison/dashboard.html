@@ -44,46 +44,112 @@
                 <button id="download-metrics" class="btn">Download Metrics CSV</button>
             </div>
             
+            <!-- Added simulation control panel -->
+            <div class="simulation-panel">
+                <h2>Simulation Controls</h2>
+                <p class="control-note">Run automated camera &amp; data simulation</p>
+                
+                <div class="control">
+                    <label for="simulation-duration">Duration (seconds):</label>
+                    <input type="number" id="simulation-duration" min="10" max="300" value="60">
+                </div>
+                
+                <div class="control">
+                    <label for="simulation-data-interval">Data Interval (ms):</label>
+                    <input type="number" id="simulation-data-interval" min="500" max="5000" value="2000">
+                </div>
+                
+                <div class="simulation-buttons">
+                    <button id="start-simulation" class="btn btn-primary">Start Simulation</button>
+                    <button id="pause-simulation" class="btn btn-secondary" disabled>Pause</button>
+                    <button id="stop-simulation" class="btn btn-danger" disabled>Stop</button>
+                </div>
+                
+                <div class="simulation-status">
+                    <div class="simulation-progress">
+                        <div id="simulation-progress-fill"></div>
+                    </div>
+                    <div id="simulation-timer">00:00</div>
+                </div>
+            </div>
+            
+            <div class="simulation-metrics" style="display:none;">
+                <h2>Simulation Results</h2>
+                <div class="metric">
+                    <span class="metric-name">Avg. FPS:</span>
+                    <span id="sim-metric-fps" class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Memory:</span>
+                    <span id="sim-metric-memory" class="metric-value">0 MB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Latency:</span>
+                    <span id="sim-metric-latency" class="metric-value">0 ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-name">Duration:</span>
+                    <span id="sim-metric-duration" class="metric-value">0 s</span>
+                </div>
+                <button id="download-sim-metrics" class="btn btn-info">Download Simulation Metrics</button>
+            </div>
+            
             <div class="digital-twin-controller">
                 <h2>Digital Twin Controls</h2>
                 <p class="control-note">Changes take effect immediately</p>
                 
                 <div class="control">
-                    <label for="factory-mixer-selector">Select Mixer:</label>
-                    <select id="factory-mixer-selector">
-                        <option value="all">All Mixers</option>
-                        <option value="Mixer_0">Mixer 0</option>
-                        <option value="Mixer_1">Mixer 1</option>
-                        <option value="Mixer_2">Mixer 2</option>
-                        <option value="Mixer_3">Mixer 3</option>
-                        <option value="Mixer_4">Mixer 4</option>
-                        <option value="Mixer_5">Mixer 5</option>
+                    <label for="component-selector">Select Component:</label>
+                    <select id="component-selector">
+                        <option value="mixers">Mixers</option>
+                        <option value="water-tank">Water Tank</option>
+                        <option value="freezer-tunnel">Freezer Tunnel</option>
+                        <option value="plastic-liner">Plastic Liner</option>
+                        <option value="cookie-former">Cookie Former</option>
+                        <option value="box-sealer">Box Sealer</option>
+                        <option value="conveyor-system">Conveyor System</option>
                     </select>
                 </div>
                 
-                <div class="control">
-                    <label for="temp-control">Temperature:</label>
-                    <input type="range" id="temp-control" min="0" max="200" value="100">
-                    <span id="temp-value">100°C</span>
+                <!-- Mixer Controls Section -->
+                <div id="mixers-controls" class="component-controls">
+                    <div class="control">
+                        <label for="factory-mixer-selector">Select Mixer:</label>
+                        <select id="factory-mixer-selector">
+                            <option value="all">All Mixers</option>
+                            <option value="Mixer_0">Mixer 0</option>
+                            <option value="Mixer_1">Mixer 1</option>
+                            <option value="Mixer_2">Mixer 2</option>
+                            <option value="Mixer_3">Mixer 3</option>
+                            <option value="Mixer_4">Mixer 4</option>
+                            <option value="Mixer_5">Mixer 5</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="temp-control">Temperature:</label>
+                        <input type="range" id="temp-control" min="0" max="200" value="100">
+                        <span id="temp-value">100°C</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="rpm-control">RPM:</label>
+                        <input type="range" id="rpm-control" min="0" max="120" value="60">
+                        <span id="rpm-value">60</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="alarm-status">Alarm Status:</label>
+                        <select id="alarm-status">
+                            <option value="NORMAL">NORMAL</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+                        </select>
+                    </div>
                 </div>
                 
-                <div class="control">
-                    <label for="rpm-control">RPM:</label>
-                    <input type="range" id="rpm-control" min="0" max="120" value="60">
-                    <span id="rpm-value">60</span>
-                </div>
-                
-                <div class="control">
-                    <label for="alarm-status">Alarm Status:</label>
-                    <select id="alarm-status">
-                        <option value="NORMAL">NORMAL</option>
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
-                    </select>
-                </div>
-                
-                <div class="control-section">
-                    <h3>Water Tank Controls</h3>
+                <!-- Water Tank Controls Section -->
+                <div id="water-tank-controls" class="component-controls" style="display: none;">
                     <div class="control">
                         <label for="water-flow-control">Flow Rate:</label>
                         <input type="range" id="water-flow-control" min="0" max="100" value="35">
@@ -94,6 +160,102 @@
                         <label for="water-volume-control">Tank Volume:</label>
                         <input type="range" id="water-volume-control" min="0" max="100" value="75">
                         <span id="water-volume-value">75%</span>
+                    </div>
+                </div>
+                
+                <!-- Freezer Tunnel Controls Section -->
+                <div id="freezer-tunnel-controls" class="component-controls" style="display: none;">
+                    <div class="control">
+                        <label for="freezer-temp-control">Temperature:</label>
+                        <input type="range" id="freezer-temp-control" min="-30" max="0" value="-15">
+                        <span id="freezer-temp-value">-15°C</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="freezer-status">Status:</label>
+                        <select id="freezer-status">
+                            <option value="RUNNING">RUNNING</option>
+                            <option value="STOPPED">STOPPED</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Plastic Liner Controls Section -->
+                <div id="plastic-liner-controls" class="component-controls" style="display: none;">
+                    <div class="control">
+                        <label for="liner-rpm-control">RPM:</label>
+                        <input type="range" id="liner-rpm-control" min="0" max="90" value="45">
+                        <span id="liner-rpm-value">45</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="liner-status">Status:</label>
+                        <select id="liner-status">
+                            <option value="NORMAL">NORMAL</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Cookie Former Controls Section -->
+                <div id="cookie-former-controls" class="component-controls" style="display: none;">
+                    <div class="control">
+                        <label for="cookie-rate-control">Production Rate:</label>
+                        <input type="range" id="cookie-rate-control" min="60" max="200" value="120">
+                        <span id="cookie-rate-value">120/min</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="cookie-quality-control">Good Parts:</label>
+                        <input type="range" id="cookie-quality-control" min="90" max="100" value="98.5" step="0.1">
+                        <span id="cookie-quality-value">98.5%</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="cookie-former-status">Status:</label>
+                        <select id="cookie-former-status">
+                            <option value="OPERATIONAL">OPERATIONAL</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
+                            <option value="FAULT">FAULT</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Box Sealer Controls Section -->
+                <div id="box-sealer-controls" class="component-controls" style="display: none;">
+                    <div class="control">
+                        <label for="box-sealer-speed">Speed:</label>
+                        <input type="range" id="box-sealer-speed" min="0.2" max="2.0" value="0.8" step="0.1">
+                        <span id="box-sealer-speed-value">0.8 m/s</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="box-sealer-status">Status:</label>
+                        <select id="box-sealer-status">
+                            <option value="OPERATIONAL">OPERATIONAL</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Conveyor System Controls Section -->
+                <div id="conveyor-system-controls" class="component-controls" style="display: none;">
+                    <div class="control">
+                        <label for="conveyor-speed-control">Speed:</label>
+                        <input type="range" id="conveyor-speed-control" min="0.2" max="2.0" value="0.8" step="0.1">
+                        <span id="conveyor-speed-value">0.8 m/s</span>
+                    </div>
+                    
+                    <div class="control">
+                        <label for="conveyor-status">Status:</label>
+                        <select id="conveyor-status">
+                            <option value="RUNNING">RUNNING</option>
+                            <option value="STOPPED">STOPPED</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
+                        </select>
                     </div>
                 </div>
                 
@@ -115,6 +277,7 @@
 
     <script src="js/common.js"></script>
     <script src="js/metrics.js"></script>
+    <script src="js/simulation.js"></script>
     <script src="js/dashboard.js"></script>
 </body>
 </html>

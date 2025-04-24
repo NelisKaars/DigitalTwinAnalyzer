@@ -13,7 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isUserInteracting: false, // Flag to track user interaction with controls
         userInteractionTimeout: null, // Timeout for user interaction
         controlUpdateTimeout: null, // Debounce timer for control updates
-        selectedMixer: 'all' // Selected mixer in factory view
+        selectedMixer: 'all', // Selected mixer in factory view
+        isSimulationActive: false, // Flag to track if simulation is active
+        activeComponent: 'mixers' // Currently active component section
     };
     
     // Framework library dependencies
@@ -50,6 +52,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
+        // Component selector
+        const componentSelector = document.getElementById('component-selector');
+        if (componentSelector) {
+            componentSelector.addEventListener('change', (e) => {
+                switchComponentSection(e.target.value);
+            });
+        }
+        
         // Factory mixer selector
         const factoryMixerSelector = document.getElementById('factory-mixer-selector');
         if (factoryMixerSelector) {
@@ -66,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateDashboardUI(state);
                 });
             });
-        };
+        }
         
         // Control sliders for temperature with auto-update
         const tempControl = document.getElementById('temp-control');
@@ -158,6 +168,171 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // FREEZER TUNNEL CONTROLS
+        // Freezer temperature control
+        const freezerTempControl = document.getElementById('freezer-temp-control');
+        if (freezerTempControl) {
+            freezerTempControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('freezer-temp-value').textContent = `${value}°C`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('FreezerTunnel', 'Temperature', parseInt(value));
+                });
+            });
+            
+            freezerTempControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('FreezerTunnel', 'Temperature', parseInt(freezerTempControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Freezer status control
+        const freezerStatusControl = document.getElementById('freezer-status');
+        if (freezerStatusControl) {
+            freezerStatusControl.addEventListener('change', (e) => {
+                DittoAPI.updateProperty('FreezerTunnel', 'State', e.target.value);
+            });
+        }
+        
+        // PLASTIC LINER CONTROLS
+        // Plastic liner RPM control
+        const linerRpmControl = document.getElementById('liner-rpm-control');
+        if (linerRpmControl) {
+            linerRpmControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('liner-rpm-value').textContent = value;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('PlasticLiner', 'RPM', parseInt(value));
+                });
+            });
+            
+            linerRpmControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('PlasticLiner', 'RPM', parseInt(linerRpmControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Plastic liner status control
+        const linerStatusControl = document.getElementById('liner-status');
+        if (linerStatusControl) {
+            linerStatusControl.addEventListener('change', (e) => {
+                DittoAPI.updateProperty('PlasticLiner', 'Status', e.target.value);
+            });
+        }
+        
+        // COOKIE FORMER CONTROLS
+        // Cookie former production rate control
+        const cookieRateControl = document.getElementById('cookie-rate-control');
+        if (cookieRateControl) {
+            cookieRateControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('cookie-rate-value').textContent = `${value}/min`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('CookieFormer', 'Rate', parseInt(value));
+                });
+            });
+            
+            cookieRateControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('CookieFormer', 'Rate', parseInt(cookieRateControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Cookie quality control
+        const cookieQualityControl = document.getElementById('cookie-quality-control');
+        if (cookieQualityControl) {
+            cookieQualityControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('cookie-quality-value').textContent = `${value}%`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('CookieFormer', 'GoodParts', parseFloat(value));
+                });
+            });
+            
+            cookieQualityControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('CookieFormer', 'GoodParts', parseFloat(cookieQualityControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Cookie former status control
+        const cookieFormerStatusControl = document.getElementById('cookie-former-status');
+        if (cookieFormerStatusControl) {
+            cookieFormerStatusControl.addEventListener('change', (e) => {
+                DittoAPI.updateProperty('CookieFormer', 'Status', e.target.value);
+            });
+        }
+        
+        // BOX SEALER CONTROLS
+        // Box sealer speed control
+        const boxSealerSpeedControl = document.getElementById('box-sealer-speed');
+        if (boxSealerSpeedControl) {
+            boxSealerSpeedControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('box-sealer-speed-value').textContent = `${value} m/s`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('BoxSealer', 'Speed', parseFloat(value));
+                });
+            });
+            
+            boxSealerSpeedControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('BoxSealer', 'Speed', parseFloat(boxSealerSpeedControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Box sealer status control
+        const boxSealerStatusControl = document.getElementById('box-sealer-status');
+        if (boxSealerStatusControl) {
+            boxSealerStatusControl.addEventListener('change', (e) => {
+                DittoAPI.updateProperty('BoxSealer', 'Status', e.target.value);
+            });
+        }
+        
+        // CONVEYOR SYSTEM CONTROLS
+        // Conveyor speed control
+        const conveyorSpeedControl = document.getElementById('conveyor-speed-control');
+        if (conveyorSpeedControl) {
+            conveyorSpeedControl.addEventListener('input', (e) => {
+                const value = e.target.value;
+                document.getElementById('conveyor-speed-value').textContent = `${value} m/s`;
+                
+                startUserInteraction();
+                
+                debounceControlUpdate(() => {
+                    DittoAPI.updateProperty('Conveyor', 'Speed', parseFloat(value));
+                });
+            });
+            
+            conveyorSpeedControl.addEventListener('change', () => {
+                DittoAPI.updateProperty('Conveyor', 'Speed', parseFloat(conveyorSpeedControl.value));
+                endUserInteraction();
+            });
+        }
+        
+        // Conveyor status control
+        const conveyorStatusControl = document.getElementById('conveyor-status');
+        if (conveyorStatusControl) {
+            conveyorStatusControl.addEventListener('change', (e) => {
+                DittoAPI.updateProperty('Conveyor', 'Status', e.target.value);
+            });
+        }
+        
         // Toggle tag visibility
         const toggleTagsCheckbox = document.getElementById('toggle-tags');
         if (toggleTagsCheckbox) {
@@ -173,6 +348,90 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('download-metrics').addEventListener('click', () => {
             MetricsCollector.downloadCSV();
         });
+        
+        // ------- Simulation Controls -------
+        
+        // Start simulation
+        document.getElementById('start-simulation').addEventListener('click', () => {
+            if (dashboardState.isSimulationActive) return;
+            
+            if (!dashboardState.activeInstance || !dashboardState.activeInstance.setCameraPosition) {
+                alert("Current framework doesn't support camera simulation. Please implement the setCameraPosition method.");
+                return;
+            }
+            
+            startSimulation();
+        });
+        
+        // Pause simulation
+        document.getElementById('pause-simulation').addEventListener('click', () => {
+            if (!dashboardState.isSimulationActive) return;
+            
+            const pauseButton = document.getElementById('pause-simulation');
+            if (pauseButton.textContent === 'Pause') {
+                Simulation.pause();
+                pauseButton.textContent = 'Resume';
+            } else {
+                Simulation.resume();
+                pauseButton.textContent = 'Pause';
+            }
+        });
+        
+        // Stop simulation
+        document.getElementById('stop-simulation').addEventListener('click', () => {
+            if (!dashboardState.isSimulationActive) return;
+            
+            stopSimulation();
+        });
+        
+        // Download simulation metrics
+        document.getElementById('download-sim-metrics').addEventListener('click', () => {
+            MetricsCollector.downloadSimulationCSV();
+        });
+    }
+    
+    /**
+     * Switch between component control sections
+     * @param {string} componentId - ID of the component section to show
+     */
+    function switchComponentSection(componentId) {
+        // Hide all component sections
+        document.querySelectorAll('.component-controls').forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        // Show selected component section
+        const selectedSection = document.getElementById(`${componentId}-controls`);
+        if (selectedSection) {
+            selectedSection.style.display = 'block';
+        }
+        
+        // Update active component in dashboard state
+        dashboardState.activeComponent = componentId;
+        
+        // If we have an active framework instance and it can focus on components
+        if (dashboardState.activeInstance) {
+            // Focus camera on this component if possible
+            if (dashboardState.activeInstance.focusOnComponent) {
+                // Map component ID to actual component tag ID used in visualization
+                const componentMap = {
+                    'mixers': dashboardState.selectedMixer, // Use selected mixer
+                    'water-tank': 'WaterTank',
+                    'freezer-tunnel': 'FreezerTunnel',
+                    'plastic-liner': 'PlasticLiner',
+                    'cookie-former': 'CookieFormer',
+                    'box-sealer': 'BoxSealer',
+                    'conveyor-system': 'ConveyorSystem'
+                };
+                
+                // Focus on the appropriate component
+                if (componentId === 'mixers') {
+                    dashboardState.activeInstance.focusOnMixer(dashboardState.selectedMixer);
+                } else if (componentMap[componentId]) {
+                    dashboardState.activeInstance.focusOnComponent(componentMap[componentId]);
+                }
+            }
+        }
     }
     
     /**
@@ -184,7 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tempValue = parseInt(value);
         
         if (selectedMixer === 'all') {
-            // Update all mixers (this is a simplified example - you might want to update only visible ones)
+            // Update all mixers
             for (let i = 0; i < 6; i++) {
                 DittoAPI.updateProperty(`Mixer_${i}`, 'Temperature', tempValue);
             }
@@ -515,5 +774,274 @@ document.addEventListener('DOMContentLoaded', () => {
                 waterVolumeValue.textContent = `${tankVolume}%`;
             }
         }
+        
+        // Update freezer tunnel temperature
+        if (twinState.features?.FreezerTunnel?.properties?.Temperature !== undefined && !dashboardState.isUserInteracting) {
+            const freezerTemp = parseFloat(twinState.features.FreezerTunnel.properties.Temperature);
+            const freezerTempControl = document.getElementById('freezer-temp-control');
+            const freezerTempValue = document.getElementById('freezer-temp-value');
+            
+            if (freezerTempControl && freezerTempValue) {
+                freezerTempControl.value = freezerTemp;
+                freezerTempValue.textContent = `${freezerTemp}°C`;
+            }
+        }
+        
+        // Update freezer tunnel status
+        if (twinState.features?.FreezerTunnel?.properties?.State !== undefined && !dashboardState.isUserInteracting) {
+            const freezerStatus = twinState.features.FreezerTunnel.properties.State;
+            const freezerStatusControl = document.getElementById('freezer-status');
+            
+            if (freezerStatusControl) {
+                freezerStatusControl.value = freezerStatus;
+            }
+        }
+        
+        // Update plastic liner RPM
+        if (twinState.features?.PlasticLiner?.properties?.RPM !== undefined && !dashboardState.isUserInteracting) {
+            const linerRPM = parseFloat(twinState.features.PlasticLiner.properties.RPM);
+            const linerRpmControl = document.getElementById('liner-rpm-control');
+            const linerRpmValue = document.getElementById('liner-rpm-value');
+            
+            if (linerRpmControl && linerRpmValue) {
+                linerRpmControl.value = linerRPM;
+                linerRpmValue.textContent = linerRPM;
+            }
+        }
+        
+        // Update plastic liner status
+        if (twinState.features?.PlasticLiner?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
+            const linerStatus = twinState.features.PlasticLiner.properties.Status;
+            const linerStatusControl = document.getElementById('liner-status');
+            
+            if (linerStatusControl) {
+                linerStatusControl.value = linerStatus;
+            }
+        }
+        
+        // Update cookie former rate
+        if (twinState.features?.CookieFormer?.properties?.Rate !== undefined && !dashboardState.isUserInteracting) {
+            const cookieRate = parseFloat(twinState.features.CookieFormer.properties.Rate);
+            const cookieRateControl = document.getElementById('cookie-rate-control');
+            const cookieRateValue = document.getElementById('cookie-rate-value');
+            
+            if (cookieRateControl && cookieRateValue) {
+                cookieRateControl.value = cookieRate;
+                cookieRateValue.textContent = `${cookieRate}/min`;
+            }
+        }
+        
+        // Update cookie former good parts percentage
+        if (twinState.features?.CookieFormer?.properties?.GoodParts !== undefined && !dashboardState.isUserInteracting) {
+            const goodParts = parseFloat(twinState.features.CookieFormer.properties.GoodParts);
+            const cookieQualityControl = document.getElementById('cookie-quality-control');
+            const cookieQualityValue = document.getElementById('cookie-quality-value');
+            
+            if (cookieQualityControl && cookieQualityValue) {
+                cookieQualityControl.value = goodParts;
+                cookieQualityValue.textContent = `${goodParts}%`;
+            }
+        }
+        
+        // Update cookie former status
+        if (twinState.features?.CookieFormer?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
+            const formerStatus = twinState.features.CookieFormer.properties.Status;
+            const cookieFormerStatusControl = document.getElementById('cookie-former-status');
+            
+            if (cookieFormerStatusControl) {
+                cookieFormerStatusControl.value = formerStatus;
+            }
+        }
+        
+        // Update box sealer speed
+        if (twinState.features?.BoxSealer?.properties?.Speed !== undefined && !dashboardState.isUserInteracting) {
+            const boxSpeed = parseFloat(twinState.features.BoxSealer.properties.Speed);
+            const boxSealerSpeedControl = document.getElementById('box-sealer-speed');
+            const boxSealerSpeedValue = document.getElementById('box-sealer-speed-value');
+            
+            if (boxSealerSpeedControl && boxSealerSpeedValue) {
+                boxSealerSpeedControl.value = boxSpeed;
+                boxSealerSpeedValue.textContent = `${boxSpeed} m/s`;
+            }
+        }
+        
+        // Update box sealer status
+        if (twinState.features?.BoxSealer?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
+            const boxStatus = twinState.features.BoxSealer.properties.Status;
+            const boxSealerStatusControl = document.getElementById('box-sealer-status');
+            
+            if (boxSealerStatusControl) {
+                boxSealerStatusControl.value = boxStatus;
+            }
+        }
+        
+        // Update conveyor system speed
+        if (twinState.features?.Conveyor?.properties?.Speed !== undefined && !dashboardState.isUserInteracting) {
+            const conveyorSpeed = parseFloat(twinState.features.Conveyor.properties.Speed);
+            const conveyorSpeedControl = document.getElementById('conveyor-speed-control');
+            const conveyorSpeedValue = document.getElementById('conveyor-speed-value');
+            
+            if (conveyorSpeedControl && conveyorSpeedValue) {
+                conveyorSpeedControl.value = conveyorSpeed;
+                conveyorSpeedValue.textContent = `${conveyorSpeed} m/s`;
+            }
+        }
+        
+        // Update conveyor system status
+        if (twinState.features?.Conveyor?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
+            const conveyorStatus = twinState.features.Conveyor.properties.Status;
+            const conveyorStatusControl = document.getElementById('conveyor-status');
+            
+            if (conveyorStatusControl) {
+                conveyorStatusControl.value = conveyorStatus;
+            }
+        }
     }
+    
+    // --- SIMULATION FUNCTIONALITY ---
+    
+    /**
+     * Start the automated simulation
+     */
+    function startSimulation() {
+        // Get simulation parameters from UI
+        const duration = parseInt(document.getElementById('simulation-duration').value);
+        const dataInterval = parseInt(document.getElementById('simulation-data-interval').value);
+        
+        // Disable controls during simulation
+        setSimulationControlsState(true);
+        
+        // Initialize the simulation
+        Simulation.initialize({
+            duration: duration,
+            dataUpdateInterval: dataInterval,
+            onProgress: updateSimulationProgress,
+            onComplete: simulationComplete,
+            onDataUpdate: () => {
+                // Optional callback when data is updated
+            }
+        });
+        
+        // Start the simulation with the active framework instance
+        Simulation.start(dashboardState.activeInstance);
+        
+        // Update state
+        dashboardState.isSimulationActive = true;
+        
+        // Show the timer at 00:00
+        updateSimulationTimer(0);
+    }
+    
+    /**
+     * Stop the current simulation
+     */
+    function stopSimulation() {
+        if (!dashboardState.isSimulationActive) return;
+        
+        Simulation.stop();
+        simulationComplete();
+    }
+    
+    /**
+     * Called when simulation is complete
+     */
+    function simulationComplete() {
+        // Update state
+        dashboardState.isSimulationActive = false;
+        
+        // Re-enable controls
+        setSimulationControlsState(false);
+        
+        // Reset pause button
+        document.getElementById('pause-simulation').textContent = 'Pause';
+        
+        // Display simulation results
+        displaySimulationResults();
+        
+        // Show simulation metrics panel
+        document.querySelector('.simulation-metrics').style.display = 'block';
+    }
+    
+    /**
+     * Update the simulation progress bar and timer
+     * @param {number} progress - Progress value between 0 and 1
+     */
+    function updateSimulationProgress(progress) {
+        // Update progress bar
+        const progressFill = document.getElementById('simulation-progress-fill');
+        const percent = Math.round(progress * 100);
+        progressFill.style.width = `${percent}%`;
+        
+        // Update timer display
+        const duration = parseInt(document.getElementById('simulation-duration').value);
+        const elapsed = duration * progress;
+        updateSimulationTimer(elapsed);
+    }
+    
+    /**
+     * Update the simulation timer display
+     * @param {number} seconds - Elapsed time in seconds
+     */
+    function updateSimulationTimer(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const timeStr = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        document.getElementById('simulation-timer').textContent = timeStr;
+    }
+    
+    /**
+     * Display the simulation results
+     */
+    function displaySimulationResults() {
+        // Get results from metrics collector
+        // Fallbacks in case the methods don't exist
+        const fps = MetricsCollector.getSimulationAverageFPS ? 
+                    MetricsCollector.getSimulationAverageFPS() : 
+                    MetricsCollector.getAverageFPS ? MetricsCollector.getAverageFPS() : 0;
+                    
+        const memory = MetricsCollector.getSimulationAverageMemory ? 
+                    MetricsCollector.getSimulationAverageMemory() : 
+                    MetricsCollector.getAverageMemory ? MetricsCollector.getAverageMemory() : 0;
+                    
+        const latency = MetricsCollector.getSimulationAverageLatency ? 
+                    MetricsCollector.getSimulationAverageLatency() : 
+                    MetricsCollector.getAverageLatency ? MetricsCollector.getAverageLatency() : 0;
+                    
+        const duration = Simulation.config.elapsedTime.toFixed(1);
+        
+        // Update UI
+        document.getElementById('sim-metric-fps').textContent = fps;
+        document.getElementById('sim-metric-memory').textContent = `${memory} MB`;
+        document.getElementById('sim-metric-latency').textContent = `${latency} ms`;
+        document.getElementById('sim-metric-duration').textContent = `${duration} s`;
+    }
+    
+    /**
+     * Enable or disable simulation controls
+     * @param {boolean} isRunning - Whether simulation is running
+     */
+    function setSimulationControlsState(isRunning) {
+        // Disable start button and enable pause/stop when running
+        document.getElementById('start-simulation').disabled = isRunning;
+        document.getElementById('pause-simulation').disabled = !isRunning;
+        document.getElementById('stop-simulation').disabled = !isRunning;
+        
+        // Disable input fields when running
+        document.getElementById('simulation-duration').disabled = isRunning;
+        document.getElementById('simulation-data-interval').disabled = isRunning;
+        
+        // Disable framework selection during simulation
+        document.querySelectorAll('.framework-list li').forEach(item => {
+            item.classList.toggle('disabled', isRunning);
+        });
+        
+        // Disable or enable digital twin manual controls
+        const controls = document.querySelectorAll('.digital-twin-controller input, .digital-twin-controller select');
+        controls.forEach(control => {
+            control.disabled = isRunning;
+        });
+    }
+    
+    // Expose the simulation object to window for potential external access
+    window.Simulation = Simulation;
 });

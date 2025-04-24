@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        #container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            width: 300px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .progress-container {
+            margin-top: 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            height: 20px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #27ae60;
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div class="controls">
+        <h3>Simulation Test</h3>
+        <div>
+            <button id="start-simulation">Start Simulation</button>
+            <button id="stop-simulation" disabled>Stop Simulation</button>
+        </div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress"></div>
+        </div>
+        <div id="status">Status: Ready</div>
+        <div id="timer">Time: 0s / 30s</div>
+        <div id="position">Position: [0, 0, 0]</div>
+        <div id="target">Target: [0, 0, 0]</div>
+    </div>
+
+    <!-- Load Three.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Simple Three.js scene setup
+        let camera, scene, renderer, controls;
+        let animationFrame = null;
+        
+        // Simulation controller
+        const Simulation = {
+            // Configuration
+            config: {
+                isRunning: false,
+                isPaused: false,
+                startTime: 0,
+                elapsedTime: 0,
+                duration: 30, // 30 seconds simulation
+                pathDuration: 20, // 20 seconds for full camera path
+                lastUpdateTime: 0
+            },
+            
+            // Camera path waypoints (position, target, up)
+            waypoints: [
+                { 
+                    position: [0, 5, 15],
+                    target: [0, 0, 0],
+                    up: [0, 1, 0]
+                },
+                { 
+                    position: [10, 3, 5],
+                    target: [0, 2, 0],
+                    up: [0, 1, 0]
+                },
+                { 
+                    position: [-8, 3, 5],
+                    target: [0, 0, 0],
+                    up: [0, 1, 0]
+                },
+                { 
+                    position: [0, 10, 0],
+                    target: [0, 0, 0],
+                    up: [0, 0, 1]  // Looking straight down
+                }
+            ],
+            
+            // Start the simulation
+            start() {
+                if (this.config.isRunning) return;
+                
+                console.log("Starting simulation");
+                this.config.isRunning = true;
+                this.config.startTime = performance.now();
+                this.config.lastUpdateTime = this.config.startTime;
+                
+                // Update UI
+                document.getElementById('start-simulation').disabled = true;
+                document.getElementById('stop-simulation').disabled = false;
+                document.getElementById('status').textContent = 'Status: Simulation Running';
+                
+                // Start animation loop if not already running
+                if (!animationFrame) {
+                    animate();
+                }
+            },
+            
+            // Stop the simulation
+            stop() {
+                if (!this.config.isRunning) return;
+                
+                console.log("Stopping simulation");
+                this.config.isRunning = false;
+                
+                // Update UI
+                document.getElementById('start-simulation').disabled = false;
+                document.getElementById('stop-simulation').disabled = true;
+                document.getElementById('status').textContent = 'Status: Simulation Stopped';
+                document.getElementById('progress').style.width = '0%';
+                document.getElementById('timer').textContent = `Time: 0s / ${this.config.duration}s`;
+                
+                // Reset camera to initial position
+                camera.position.set(0, 5, 10);
+                controls.target.set(0, 0, 0);
+                camera.up.set(0, 1, 0);
+                controls.update();
+            },
+            
+            // Update simulation state
+            update(timestamp) {
+                if (!this.config.isRunning) return;
+                
+                // Calculate elapsed time
+                this.config.elapsedTime = (timestamp - this.config.startTime) / 1000; // Convert to seconds
+                
+                // Check if simulation is complete
+                if (this.config.elapsedTime >= this.config.duration) {
+                    this.stop();
+                    return;
+                }
+                
+                // Update UI
+                const progress = (this.config.elapsedTime / this.config.duration) * 100;
+                document.getElementById('progress').style.width = `${progress}%`;
+                document.getElementById('timer').textContent = 
+                    `Time: ${this.config.elapsedTime.toFixed(1)}s / ${this.config.duration}s`;
+                
+                // Update camera position
+                this._updateCameraPosition();
+            },
+            
+            // Update camera position along waypoint path
+            _updateCameraPosition() {
+                // Calculate normalized time for entire path (0 to 1)
+                const pathTime = (this.config.elapsedTime % this.config.pathDuration) / this.config.pathDuration;
+                
+                // Calculate current and next waypoint indices
+                const waypointCount = this.waypoints.length;
+                const totalProgress = pathTime * waypointCount;
+                const currentIndex = Math.floor(totalProgress);
+                const nextIndex = (currentIndex + 1) % waypointCount;
+                
+                // Calculate progress between the two waypoints (0 to 1)
+                const segmentProgress = totalProgress - currentIndex;
+                
+                // Get the current and next waypoints
+                const current = this.waypoints[currentIndex];
+                const next = this.waypoints[nextIndex];
+                
+                // Interpolate between waypoints
+                const position = this._interpolateVector(current.position, next.position, segmentProgress);
+                const target = this._interpolateVector(current.target, next.target, segmentProgress);
+                const up = this._interpolateVector(current.up, next.up, segmentProgress);
+                
+                // Update UI display of position and target
+                document.getElementById('position').textContent = 
+                    `Position: [${position.map(v => v.toFixed(2)).join(', ')}]`;
+                document.getElementById('target').textContent = 
+                    `Target: [${target.map(v => v.toFixed(2)).join(', ')}]`;
+                
+                // Update camera
+                camera.position.set(position[0], position[1], position[2]);
+                controls.target.set(target[0], target[1], target[2]);
+                camera.up.set(up[0], up[1], up[2]);
+                controls.update();
+            },
+            
+            // Helper to interpolate between two 3D vectors
+            _interpolateVector(a, b, t) {
+                return [
+                    a[0] + (b[0] - a[0]) * t,
+                    a[1] + (b[1] - a[1]) * t,
+                    a[2] + (b[2] - a[2]) * t
+                ];
+            }
+        };
+        
+        // Initialize the scene
+        function init() {
+            // Create container
+            const container = document.getElementById('container');
+            
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Add some objects to the scene
+            addObjects();
+            
+            // Add lights
+            addLights();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Add button event listeners
+            document.getElementById('start-simulation').addEventListener('click', () => Simulation.start());
+            document.getElementById('stop-simulation').addEventListener('click', () => Simulation.stop());
+            
+            // Start animation loop
+            animate();
+        }
+        
+        // Add simple objects to the scene
+        function addObjects() {
+            // Ground plane
+            const groundGeometry = new THREE.PlaneGeometry(30, 30);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xcccccc,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Add some cubes in a grid pattern
+            const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+            
+            for (let x = -10; x <= 10; x += 5) {
+                for (let z = -10; z <= 10; z += 5) {
+                    if (x === 0 && z === 0) continue; // Skip center
+                    
+                    const colorIndex = Math.abs(x + z) % colors.length;
+                    const material = new THREE.MeshStandardMaterial({ color: colors[colorIndex] });
+                    const cube = new THREE.Mesh(cubeGeometry, material);
+                    cube.position.set(x, 0.5, z);
+                    scene.add(cube);
+                }
+            }
+            
+            // Add a central larger cube
+            const centerCubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const centerCubeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const centerCube = new THREE.Mesh(centerCubeGeometry, centerCubeMaterial);
+            centerCube.position.set(0, 1, 0);
+            scene.add(centerCube);
+        }
+        
+        // Add lights to the scene
+        function addLights() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            // Directional light (sun)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Animation loop
+        function animate(timestamp) {
+            animationFrame = requestAnimationFrame(animate);
+            
+            // Update simulation if running
+            if (Simulation.config.isRunning) {
+                Simulation.update(timestamp);
+            } else {
+                // Just update controls when simulation is not running
+                controls.update();
+            }
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize everything when the page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

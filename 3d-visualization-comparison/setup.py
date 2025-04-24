@@ -169,6 +169,47 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                 }
             }
             
+            # Add FreezerTunnel component
+            features["FreezerTunnel"] = {
+                "properties": {
+                    "Temperature": -15,
+                    "State": "RUNNING"
+                }
+            }
+            
+            # Add PlasticLiner component
+            features["PlasticLiner"] = {
+                "properties": {
+                    "RPM": 45,
+                    "Status": "NORMAL"
+                }
+            }
+            
+            # Add CookieFormer component
+            features["CookieFormer"] = {
+                "properties": {
+                    "Rate": 120,
+                    "GoodParts": 98.5,
+                    "Status": "OPERATIONAL"
+                }
+            }
+            
+            # Add BoxSealer component
+            features["BoxSealer"] = {
+                "properties": {
+                    "Speed": 0.8,
+                    "Status": "OPERATIONAL"
+                }
+            }
+            
+            # Add Conveyor component
+            features["Conveyor"] = {
+                "properties": {
+                    "Speed": 0.8,
+                    "Status": "RUNNING"
+                }
+            }
+            
             # Create the factory digital twin with all features
             factory_thing = {
                 "thingId": thing_id,
@@ -178,7 +219,7 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
             create_response = requests.put(url, data=json.dumps(factory_thing), headers=headers)
             
             if create_response.status_code in (201, 204):
-                print_success(f"Successfully created Factory digital twin with 6 mixers and water tank")
+                print_success(f"Successfully created Factory digital twin with 6 mixers, water tank, and other components")
                 return True
             else:
                 print_error(f"Failed to create Factory digital twin: Status code {create_response.status_code}")
@@ -187,22 +228,91 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
         elif response.status_code == 200:
             print_success("Factory digital twin already exists")
             
-            # Check if we need to update the water tank to add tankVolume1 property
-            water_tank_url = f"{url}/features/WaterTank/properties/tankVolume1"
-            tank_response = requests.get(water_tank_url, headers=headers)
+            # Check and add missing components if needed
+            components_to_check = [
+                {
+                    "name": "WaterTank",
+                    "properties": {
+                        "tankVolume1": 75
+                    }
+                },
+                {
+                    "name": "FreezerTunnel",
+                    "properties": {
+                        "Temperature": -15,
+                        "State": "RUNNING"
+                    }
+                },
+                {
+                    "name": "PlasticLiner",
+                    "properties": {
+                        "RPM": 45,
+                        "Status": "NORMAL"
+                    }
+                },
+                {
+                    "name": "CookieFormer",
+                    "properties": {
+                        "Rate": 120,
+                        "GoodParts": 98.5,
+                        "Status": "OPERATIONAL"
+                    }
+                },
+                {
+                    "name": "BoxSealer",
+                    "properties": {
+                        "Speed": 0.8,
+                        "Status": "OPERATIONAL"
+                    }
+                },
+                {
+                    "name": "Conveyor",
+                    "properties": {
+                        "Speed": 0.8,
+                        "Status": "RUNNING"
+                    }
+                }
+            ]
             
-            if tank_response.status_code == 404:
-                # Need to add tankVolume1 property
-                print_step("Adding tankVolume1 property to existing WaterTank...")
-                tank_update = requests.put(
-                    water_tank_url,
-                    data=json.dumps(75),  # Initial value of 75%
-                    headers=headers
-                )
-                if tank_update.status_code in (201, 204):
-                    print_success("Added tankVolume1 property to WaterTank")
+            # Check each component and add if missing
+            for component in components_to_check:
+                component_name = component["name"]
+                component_url = f"{url}/features/{component_name}"
+                
+                comp_response = requests.get(component_url, headers=headers)
+                
+                if comp_response.status_code == 404:
+                    # Component doesn't exist, create it
+                    print_step(f"Adding missing {component_name} component...")
+                    comp_update = requests.put(
+                        component_url,
+                        data=json.dumps({"properties": component["properties"]}),
+                        headers=headers
+                    )
+                    
+                    if comp_update.status_code in (201, 204):
+                        print_success(f"Added {component_name} component")
+                    else:
+                        print_warning(f"Could not add {component_name}: Status code {comp_update.status_code}")
                 else:
-                    print_warning(f"Could not add tankVolume1 property: Status code {tank_update.status_code}")
+                    # Component exists, check individual properties
+                    for prop_name, prop_value in component["properties"].items():
+                        prop_url = f"{component_url}/properties/{prop_name}"
+                        prop_response = requests.get(prop_url, headers=headers)
+                        
+                        if prop_response.status_code == 404:
+                            # Property doesn't exist, add it
+                            print_step(f"Adding missing {prop_name} property to {component_name}...")
+                            prop_update = requests.put(
+                                prop_url,
+                                data=json.dumps(prop_value),
+                                headers=headers
+                            )
+                            
+                            if prop_update.status_code in (201, 204):
+                                print_success(f"Added {prop_name} to {component_name}")
+                            else:
+                                print_warning(f"Could not add {prop_name} to {component_name}: Status code {prop_update.status_code}")
             
             return True
         else:
