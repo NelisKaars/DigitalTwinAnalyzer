@@ -165,19 +165,20 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
             features["WaterTank"] = {
                 "properties": {
                     "flowRate1": 35,
-                    "tankVolume1": 75  # Added tank volume property (percentage)
+                    "tankVolume1": 75,  # Added tank volume property (percentage)
+                    "Status": "NORMAL"  # Added standardized status
                 }
             }
             
-            # Add FreezerTunnel component
+            # Add FreezerTunnel component - UPDATED to use standardized status
             features["FreezerTunnel"] = {
                 "properties": {
                     "Temperature": -15,
-                    "State": "RUNNING"
+                    "State": "NORMAL"  # Changed from RUNNING to NORMAL
                 }
             }
             
-            # Add PlasticLiner component
+            # Add PlasticLiner component - already uses NORMAL
             features["PlasticLiner"] = {
                 "properties": {
                     "RPM": 45,
@@ -185,28 +186,28 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                 }
             }
             
-            # Add CookieFormer component
+            # Add CookieFormer component - UPDATED to use standardized status
             features["CookieFormer"] = {
                 "properties": {
                     "Rate": 120,
                     "GoodParts": 98.5,
-                    "Status": "OPERATIONAL"
+                    "Status": "NORMAL"  # Changed from OPERATIONAL to NORMAL
                 }
             }
             
-            # Add BoxSealer component
+            # Add BoxSealer component - UPDATED to use standardized status
             features["BoxSealer"] = {
                 "properties": {
                     "Speed": 0.8,
-                    "Status": "OPERATIONAL"
+                    "Status": "NORMAL"  # Changed from OPERATIONAL to NORMAL
                 }
             }
             
-            # Add Conveyor component
+            # Add Conveyor component - UPDATED to use standardized status
             features["Conveyor"] = {
                 "properties": {
                     "Speed": 0.8,
-                    "Status": "RUNNING"
+                    "Status": "NORMAL"  # Changed from RUNNING to NORMAL
                 }
             }
             
@@ -233,21 +234,22 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                 {
                     "name": "WaterTank",
                     "properties": {
-                        "tankVolume1": 75
+                        "tankVolume1": 75,
+                        "Status": "NORMAL"  # Added standardized status
                     }
                 },
                 {
                     "name": "FreezerTunnel",
                     "properties": {
                         "Temperature": -15,
-                        "State": "RUNNING"
+                        "State": "NORMAL"  # Changed from RUNNING to NORMAL
                     }
                 },
                 {
                     "name": "PlasticLiner",
                     "properties": {
                         "RPM": 45,
-                        "Status": "NORMAL"
+                        "Status": "NORMAL"  # Already using NORMAL
                     }
                 },
                 {
@@ -255,21 +257,21 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                     "properties": {
                         "Rate": 120,
                         "GoodParts": 98.5,
-                        "Status": "OPERATIONAL"
+                        "Status": "NORMAL"  # Changed from OPERATIONAL to NORMAL
                     }
                 },
                 {
                     "name": "BoxSealer",
                     "properties": {
                         "Speed": 0.8,
-                        "Status": "OPERATIONAL"
+                        "Status": "NORMAL"  # Changed from OPERATIONAL to NORMAL
                     }
                 },
                 {
                     "name": "Conveyor",
                     "properties": {
                         "Speed": 0.8,
-                        "Status": "RUNNING"
+                        "Status": "NORMAL"  # Changed from RUNNING to NORMAL
                     }
                 }
             ]
@@ -313,6 +315,32 @@ def create_factory_digital_twin(ditto_url="http://localhost:8080"):
                                 print_success(f"Added {prop_name} to {component_name}")
                             else:
                                 print_warning(f"Could not add {prop_name} to {component_name}: Status code {prop_update.status_code}")
+            
+            # Update existing status properties to use standardized values if they aren't already
+            for component in components_to_check:
+                component_name = component["name"]
+                # For FreezerTunnel the status field is called "State", for others it's "Status"
+                status_field = "State" if component_name == "FreezerTunnel" else "Status"
+                
+                if status_field in component["properties"]:
+                    status_url = f"{url}/features/{component_name}/properties/{status_field}"
+                    status_response = requests.get(status_url, headers=headers)
+                    
+                    if status_response.status_code == 200:
+                        current_status = status_response.json()
+                        # If current status is not one of our standardized values, update it to NORMAL
+                        if current_status not in ["NORMAL", "ACTIVE", "ACKNOWLEDGED"]:
+                            print_step(f"Updating {component_name} {status_field} to use standardized value...")
+                            status_update = requests.put(
+                                status_url,
+                                data=json.dumps("NORMAL"),
+                                headers=headers
+                            )
+                            
+                            if status_update.status_code in (201, 204):
+                                print_success(f"Updated {component_name} {status_field} to NORMAL")
+                            else:
+                                print_warning(f"Could not update {component_name} {status_field}: Status code {status_update.status_code}")
             
             return True
         else:

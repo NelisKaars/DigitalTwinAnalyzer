@@ -168,6 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // Water tank status control
+        const waterTankStatusControl = document.getElementById('water-tank-status');
+        if (waterTankStatusControl) {
+            waterTankStatusControl.addEventListener('change', (e) => {
+                updateWaterTankStatus(e.target.value);
+            });
+        }
+        
         // FREEZER TUNNEL CONTROLS
         // Freezer temperature control
         const freezerTempControl = document.getElementById('freezer-temp-control');
@@ -193,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const freezerStatusControl = document.getElementById('freezer-status');
         if (freezerStatusControl) {
             freezerStatusControl.addEventListener('change', (e) => {
-                DittoAPI.updateProperty('FreezerTunnel', 'State', e.target.value);
+                updateFreezerStatus(e.target.value);
             });
         }
         
@@ -222,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const linerStatusControl = document.getElementById('liner-status');
         if (linerStatusControl) {
             linerStatusControl.addEventListener('change', (e) => {
-                DittoAPI.updateProperty('PlasticLiner', 'Status', e.target.value);
+                updateLinerStatus(e.target.value);
             });
         }
         
@@ -271,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cookieFormerStatusControl = document.getElementById('cookie-former-status');
         if (cookieFormerStatusControl) {
             cookieFormerStatusControl.addEventListener('change', (e) => {
-                DittoAPI.updateProperty('CookieFormer', 'Status', e.target.value);
+                updateCookieFormerStatus(e.target.value);
             });
         }
         
@@ -300,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxSealerStatusControl = document.getElementById('box-sealer-status');
         if (boxSealerStatusControl) {
             boxSealerStatusControl.addEventListener('change', (e) => {
-                DittoAPI.updateProperty('BoxSealer', 'Status', e.target.value);
+                updateBoxSealerStatus(e.target.value);
             });
         }
         
@@ -329,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const conveyorStatusControl = document.getElementById('conveyor-status');
         if (conveyorStatusControl) {
             conveyorStatusControl.addEventListener('change', (e) => {
-                DittoAPI.updateProperty('Conveyor', 'Status', e.target.value);
+                updateConveyorStatus(e.target.value);
             });
         }
         
@@ -488,6 +496,60 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update only the selected mixer
             DittoAPI.updateProperty(`${selectedMixer}_AlarmComponent`, 'alarm_status', status);
         }
+    }
+    
+    /**
+     * Update status for water tank component
+     * @param {string} status - Water tank status
+     */
+    function updateWaterTankStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('WaterTank', 'Status', status);
+    }
+    
+    /**
+     * Update status for the freezer tunnel component
+     * @param {string} status - Freezer tunnel status
+     */
+    function updateFreezerStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('FreezerTunnel', 'Status', status);
+    }
+    
+    /**
+     * Update status for the plastic liner component
+     * @param {string} status - Plastic liner status
+     */
+    function updateLinerStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('PlasticLiner', 'Status', status);
+    }
+    
+    /**
+     * Update status for the cookie former component
+     * @param {string} status - Cookie former status
+     */
+    function updateCookieFormerStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('CookieFormer', 'Status', status);
+    }
+    
+    /**
+     * Update status for the box sealer component
+     * @param {string} status - Box sealer status
+     */
+    function updateBoxSealerStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('BoxSealer', 'Status', status);
+    }
+    
+    /**
+     * Update status for the conveyor system component
+     * @param {string} status - Conveyor system status
+     */
+    function updateConveyorStatus(status) {
+        // Remove condition to allow updates regardless of active component
+        DittoAPI.updateProperty('Conveyor', 'Status', status);
     }
     
     /**
@@ -787,9 +849,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Update freezer tunnel status
-        if (twinState.features?.FreezerTunnel?.properties?.State !== undefined && !dashboardState.isUserInteracting) {
-            const freezerStatus = twinState.features.FreezerTunnel.properties.State;
+        // Update freezer tunnel status - changed from State to Status
+        if (twinState.features?.FreezerTunnel?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
+            const freezerStatus = twinState.features.FreezerTunnel.properties.Status;
             const freezerStatusControl = document.getElementById('freezer-status');
             
             if (freezerStatusControl) {

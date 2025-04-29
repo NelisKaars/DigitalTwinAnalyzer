@@ -10,71 +10,72 @@ const Simulation = {
         startTime: 0,                  // When simulation started
         elapsedTime: 0,                // Total elapsed time
         duration: 60,                  // Total duration in seconds
-        cameraPathDuration: 60,        // Time to complete full camera path in seconds
+        cameraPathDuration: 5,        // Time to complete full camera path in seconds
         dataUpdateInterval: 2000,      // How often to update digital twin data (ms)
         lastDataUpdate: 0,             // Timestamp of last data update
         waypointIndex: 0,              // Current waypoint index
         waypointProgress: 0,           // Progress between waypoints (0-1)
         activeInstance: null,          // Reference to active framework instance
+        cameraControlsEnabled: true,   // Whether user camera controls are enabled
     },
     
     // Camera path waypoints (position, target, up vector)
     waypoints: [
         { 
-            position: [0, 5, 15],        // Start with overview of factory
+            position: [50, 50, -100],        // Move to the hall next to production line
             target: [0, 0, 0],
             up: [0, 1, 0]
-        },
-        { 
-            position: [15, 5, 0],        // Move toward production line
-            target: [5, 2, 0],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [15, 3, -5],       // View of production line entrance
-            target: [10, 2, -5],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [8, 3, -10],       // Close up of production line
-            target: [2, 2, -10],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [5, 3, -15],       // Further along production line
-            target: [0, 2, -12],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [0, 3, -15],       // Center of production line
-            target: [0, 1, -10],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [-8, 4, -5],       // Moving toward cookie mixer room
-            target: [-5, 2, 0],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [-15, 3, 0],       // Entering cookie mixer room
-            target: [-8, 2, 0],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [-10, 3, 5],       // Inside cookie mixer room
-            target: [-8, 2, 5],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [-5, 2, 10],       // Close up of cookie mixers
-            target: [-5, 1, 5],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [0, 8, 0],         // End with overhead view
-            target: [0, 0, 0],
-            up: [0, 0, 1]
         }
+        // { 
+        //     position: [7, 3, 0],        // Move toward production line
+        //     target: [7, 3, 15],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [7, 3, 15],       // Move toward production line
+        //     target: [7, 3, 15],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [8, 3, -10],       // Take a left to production line
+        //     target: [2, 2, -10],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [5, 3, -15],       // Walk to the left around production line
+        //     target: [0, 2, -12],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [0, 3, -15],       // Close up of production line (Data changed so plastic liner is sped up)
+        //     target: [0, 1, -10],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [-8, 4, -5],       // Walk through freezer tunnel (alarm should go off or something so visuals are affected)
+        //     target: [-5, 2, 0],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [-15, 3, 0],       // Walk towards door cookiemixer room
+        //     target: [-8, 2, 0],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [-10, 3, 5],       // Walk through door cookiemixer room
+        //     target: [-8, 2, 5],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [22, 3, 69],        /// Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
+        //     target: [22, 3, 69],
+        //     up: [0, 1, 0]
+        // },
+        // { 
+        //     position: [0, 8, 0],         // turn around go up and whilst looking down to see the entire factory (the end)
+        //     target: [0, 0, 0],
+        //     up: [0, 0, 1]
+        // }
     ],
     
     // Property update patterns - how values change during simulation
@@ -147,6 +148,7 @@ const Simulation = {
         this.config.waypointIndex = 0;
         this.config.waypointProgress = 0;
         this.config.lastDataUpdate = 0;
+        this.config.cameraControlsEnabled = true;
     },
     
     // Start the simulation
@@ -156,6 +158,12 @@ const Simulation = {
         this.config.isRunning = true;
         this.config.startTime = performance.now();
         this.config.activeInstance = activeInstance;
+        
+        // Disable camera controls when starting simulation
+        if (activeInstance && typeof activeInstance.setCameraControlsEnabled === 'function') {
+            activeInstance.setCameraControlsEnabled(false);
+            this.config.cameraControlsEnabled = false;
+        }
         
         // Start metrics collection specific to this simulation run
         if (MetricsCollector.startSimulation) {
@@ -194,6 +202,12 @@ const Simulation = {
         
         this.config.isRunning = false;
         
+        // Re-enable camera controls
+        if (this.config.activeInstance && typeof this.config.activeInstance.setCameraControlsEnabled === 'function') {
+            this.config.activeInstance.setCameraControlsEnabled(true);
+            this.config.cameraControlsEnabled = true;
+        }
+        
         // Resume normal polling
         DittoAPI.resumePolling();
         
@@ -206,7 +220,7 @@ const Simulation = {
             this.callbacks.onComplete();
         }
         
-        console.log('Simulation stopped');
+        console.log('Simulation stopped, camera controls restored');
     },
     
     // Main update loop

@@ -57,10 +57,16 @@ class ThreeJSVisualizer {
             status: 'NORMAL',
             waterFlowRate: 35,
             tankVolume: 75,
+            waterTankStatus: 'NORMAL',    // Add water tank specific status
             freezerTemperature: -15,
+            freezerStatus: 'RUNNING',    // Add component-specific status
             linerRPM: 45,
+            linerStatus: 'NORMAL',       // Add component-specific status
             cookieFormerRate: 120,
+            cookieFormerStatus: 'OPERATIONAL',  // Add component-specific status
+            boxSealerStatus: 'OPERATIONAL',     // Add component-specific status
             conveyorSpeed: 0.8,
+            conveyorStatus: 'RUNNING',   // Add component-specific status
             goodParts: 98.5
         };
 
@@ -600,6 +606,7 @@ class ThreeJSVisualizer {
                 <div><strong>Water Tank</strong></div>
                 <div>Flow Rate: ${this.modelState.waterFlowRate}</div>
                 <div>Volume: ${this.modelState.tankVolume}%</div>
+                <div>Status: ${this.modelState.waterTankStatus}</div>
             `;
 
             // Add mouse interaction
@@ -627,7 +634,7 @@ class ThreeJSVisualizer {
                     <div><strong>Freezer Tunnel</strong></div>
                     <div>Temperature: ${this.modelState.freezerTemperature}°C</div>
                     <div>Speed: ${this.modelState.conveyorSpeed} m/s</div>
-                    <div>State: RUNNING</div>
+                    <div>Status: RUNNING</div>
                 `
             });
         }
@@ -923,11 +930,11 @@ class ThreeJSVisualizer {
 
         this.tagContainer.appendChild(tagElement);
 
-        // Store references
+        // Store references with the specific component type instead of generic "equipment"
         this.tags[id] = {
             element: tagElement,
             object3D: tagGroup,
-            type: options.type || 'equipment'
+            type: id  // Use the component ID as the type directly
         };
 
         object.add(tagGroup);
@@ -1047,6 +1054,7 @@ class ThreeJSVisualizer {
                 <div><strong>Water Tank</strong></div>
                 <div>Flow Rate: ${data.waterFlowRate}</div>
                 <div>Volume: ${data.tankVolume}%</div>
+                <div>Status: ${data.status || 'NORMAL'}</div>
             `;
 
             // Update color based on flow rate
@@ -1057,77 +1065,125 @@ class ThreeJSVisualizer {
             } else {
                 tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal flow
             }
-        } else if (tag.type === 'equipment') {
-            // Handle other equipment types based on the tagId
-            switch (tagId) {
-                case 'FreezerTunnel':
-                    tag.element.innerHTML = `
-                        <div><strong>Freezer Tunnel</strong></div>
-                        <div>Temperature: ${data.freezerTemperature}°C</div>
-                        <div>Speed: ${data.conveyorSpeed} m/s</div>
-                        <div>State: ${data.state || 'RUNNING'}</div>
-                    `;
-                    // Blue color for cold temperatures
-                    const freezerColor = this.getFreezerTemperatureColor(data.freezerTemperature);
-                    tag.element.style.borderLeft = `4px solid ${freezerColor}`;
-                    break;
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        } else if (tag.type === 'FreezerTunnel') {
+            tag.element.innerHTML = `
+                <div><strong>Freezer Tunnel</strong></div>
+                <div>Temperature: ${data.freezerTemperature}°C</div>
+                <div>Speed: ${data.conveyorSpeed} m/s</div>
+                <div>Status: ${data.status}</div>
+            `;
+            
+            // Blue color for cold temperatures
+            const freezerColor = this.getFreezerTemperatureColor(data.freezerTemperature);
+            tag.element.style.borderLeft = `4px solid ${freezerColor}`;
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        } else if (tag.type === 'PlasticLiner') {
+            tag.element.innerHTML = `
+                <div><strong>Plastic Liner</strong></div>
+                <div>RPM: ${data.linerRPM}</div>
+                <div>Status: ${data.status || 'NORMAL'}</div>
+            `;
+            
+            // Color based on RPM
+            if (data.linerRPM > 60) {
+                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high RPM
+            } else if (data.linerRPM < 30) {
+                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low RPM
+            } else {
+                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+            }
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        } else if (tag.type === 'CookieFormer') {
+            tag.element.innerHTML = `
+                <div><strong>Cookie Former</strong></div>
+                <div>Rate: ${data.cookieFormerRate}/min</div>
+                <div>Good Parts: ${data.goodParts}%</div>
+                <div>Status: ${data.status || 'NORMAL'}</div>
+            `;
+            
+            // Color based on good parts percentage
+            if (data.goodParts < 95) {
+                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for low quality
+            } else if (data.goodParts < 98) {
+                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for medium quality
+            } else {
+                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for high quality
+            }
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        } else if (tag.type === 'BoxSealer') {
+            tag.element.innerHTML = `
+                <div><strong>Box Sealer</strong></div>
+                <div>Speed: ${data.conveyorSpeed} m/s</div>
+                <div>Status: ${data.status || 'NORMAL'}</div>
+            `;
 
-                case 'PlasticLiner':
-                    tag.element.innerHTML = `
-                        <div><strong>Plastic Liner</strong></div>
-                        <div>RPM: ${data.linerRPM}</div>
-                        <div>Status: ${data.status || 'NORMAL'}</div>
-                    `;
-                    // Color based on RPM
-                    if (data.linerRPM > 60) {
-                        tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high RPM
-                    } else if (data.linerRPM < 30) {
-                        tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low RPM
-                    } else {
-                        tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
-                    }
-                    break;
-
-                case 'CookieFormer':
-                    tag.element.innerHTML = `
-                        <div><strong>Cookie Former</strong></div>
-                        <div>Rate: ${data.cookieFormerRate}/min</div>
-                        <div>Good Parts: ${data.goodParts}%</div>
-                    `;
-                    // Color based on good parts percentage
-                    if (data.goodParts < 95) {
-                        tag.element.style.borderLeft = '4px solid #ff0000'; // Red for low quality
-                    } else if (data.goodParts < 98) {
-                        tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for medium quality
-                    } else {
-                        tag.element.style.borderLeft = '4px solid #00ff00'; // Green for high quality
-                    }
-                    break;
-
-                case 'BoxSealer':
-                    tag.element.innerHTML = `
-                        <div><strong>Box Sealer</strong></div>
-                        <div>Speed: ${data.conveyorSpeed} m/s</div>
-                        <div>Status: ${data.status || 'OPERATIONAL'}</div>
-                    `;
-                    tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
-                    break;
-
-                case 'ConveyorSystem':
-                    tag.element.innerHTML = `
-                        <div><strong>Conveyor System</strong></div>
-                        <div>Speed: ${data.conveyorSpeed} m/s</div>
-                        <div>Status: ${data.status || 'RUNNING'}</div>
-                    `;
-                    // Color based on speed
-                    if (data.conveyorSpeed > 1.5) {
-                        tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high speed
-                    } else if (data.conveyorSpeed < 0.3) {
-                        tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low speed
-                    } else {
-                        tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
-                    }
-                    break;
+            // Default border
+            tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            }
+        } else if (tag.type === 'ConveyorSystem') {
+            tag.element.innerHTML = `
+                <div><strong>Conveyor System</strong></div>
+                <div>Speed: ${data.conveyorSpeed} m/s</div>
+                <div>Status: ${data.status || 'NORMAL'}</div>
+            `;
+            
+            // Color based on speed
+            if (data.conveyorSpeed > 1.5) {
+                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high speed
+            } else if (data.conveyorSpeed < 0.3) {
+                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low speed
+            } else {
+                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+            }
+            
+            // Update color based on alarm status - same as mixers
+            if (data.status === 'ACTIVE') {
+                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            } else if (data.status === 'ACKNOWLEDGED') {
+                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+            } else {
+                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
         }
     }
@@ -1386,11 +1442,12 @@ class ThreeJSVisualizer {
                 }
             });
 
-            // Update water tank tag content
+            // Update water tank tag content - Use the stored water tank status
             if (this.tags['WaterTank']) {
                 this.updateTagContent('WaterTank', {
                     waterFlowRate: this.modelState.waterFlowRate,
-                    tankVolume: this.modelState.tankVolume
+                    tankVolume: this.modelState.tankVolume,
+                    status: this.modelState.waterTankStatus || 'NORMAL'
                 });
             }
         }
@@ -1408,12 +1465,12 @@ class ThreeJSVisualizer {
                 this.freezerTunnel.material.emissiveIntensity = intensity;
             }
 
-            // Update freezer tunnel tag content
+            // Update freezer tunnel tag content - Use the stored freezer status
             if (this.tags['FreezerTunnel']) {
                 this.updateTagContent('FreezerTunnel', {
                     freezerTemperature: this.modelState.freezerTemperature,
                     conveyorSpeed: this.modelState.conveyorSpeed,
-                    state: 'RUNNING'
+                    status: this.modelState.freezerStatus || 'RUNNING' // Use component-specific status
                 });
             }
         }
@@ -1440,28 +1497,29 @@ class ThreeJSVisualizer {
                 this.textureOffsets['plastic_liner'] = offset;
             }
 
-            // Update plastic liner tag content
+            // Update plastic liner tag content - Use the stored plastic liner status
             if (this.tags['PlasticLiner']) {
                 this.updateTagContent('PlasticLiner', {
                     linerRPM: this.modelState.linerRPM,
-                    status: 'NORMAL'
+                    status: this.modelState.linerStatus || 'NORMAL' // Use component-specific status
                 });
             }
         }
 
-        // Update cookie former
+        // Update cookie former - Use the stored cookie former status
         if (this.cookieFormer && this.tags['CookieFormer']) {
             this.updateTagContent('CookieFormer', {
                 cookieFormerRate: this.modelState.cookieFormerRate,
-                goodParts: this.modelState.goodParts
+                goodParts: this.modelState.goodParts,
+                status: this.modelState.cookieFormerStatus || 'OPERATIONAL' // Use component-specific status
             });
         }
 
-        // Update box sealer
+        // Update box sealer - Use the stored box sealer status
         if (this.boxSealer && this.tags['BoxSealer']) {
             this.updateTagContent('BoxSealer', {
                 conveyorSpeed: this.modelState.conveyorSpeed,
-                status: 'OPERATIONAL'
+                status: this.modelState.boxSealerStatus || 'OPERATIONAL' // Use component-specific status
             });
         }
 
@@ -1484,11 +1542,11 @@ class ThreeJSVisualizer {
             }
         });
 
-        // Update conveyor system tag if it exists
+        // Update conveyor system tag if it exists - Use the stored conveyor status
         if (this.tags['ConveyorSystem']) {
             this.updateTagContent('ConveyorSystem', {
                 conveyorSpeed: this.modelState.conveyorSpeed,
-                status: 'RUNNING'
+                status: this.modelState.conveyorStatus || 'RUNNING' // Use component-specific status
             });
         }
     }
@@ -1596,7 +1654,7 @@ class ThreeJSVisualizer {
                 }
             }
             
-            // Update alarm status
+            // Update alarm status - THIS IS THE KEY PART THAT WORKS PROPERLY FOR MIXERS
             const alarmKey = `${mixerKey}_AlarmComponent`;
             if (twinState.features?.[alarmKey]?.properties?.alarm_status !== undefined) {
                 const status = twinState.features[alarmKey].properties.alarm_status;
@@ -1607,12 +1665,12 @@ class ThreeJSVisualizer {
                     mixer.data = mixer.data || {};
                     mixer.data.status = status;
                     
-                    // Update tag if it exists
+                    // Update tag immediately with the new status
                     if (this.tags[mixerKey]) {
                         this.updateTagContent(mixerKey, {
                             temperature: mixer.data.temperature || this.modelState.temperature,
                             rpm: mixer.data.rpm || this.modelState.rpm,
-                            status: status
+                            status: status  // Use the status directly from the backend
                         });
                     }
                 }
@@ -1634,7 +1692,8 @@ class ThreeJSVisualizer {
                 if (this.tags['WaterTank']) {
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: flowRate,
-                        tankVolume: this.modelState.tankVolume
+                        tankVolume: this.modelState.tankVolume,
+                        status: this.modelState.waterTankStatus || 'NORMAL'
                     });
                 }
             }
@@ -1650,9 +1709,27 @@ class ThreeJSVisualizer {
                 if (this.tags['WaterTank']) {
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: this.modelState.waterFlowRate,
-                        tankVolume: tankVolume
+                        tankVolume: tankVolume,
+                        status: this.modelState.waterTankStatus || 'NORMAL'
                     });
                 }
+            }
+        }
+        
+        // Update water tank status
+        if (twinState.features?.WaterTank?.properties?.Status !== undefined) {
+            const waterTankStatus = twinState.features.WaterTank.properties.Status;
+            
+            // Store the status in the model state for use in animation updates
+            this.modelState.waterTankStatus = waterTankStatus;
+            
+            // Update tag content for water tank with the status directly from the backend
+            if (this.tags['WaterTank']) {
+                this.updateTagContent('WaterTank', {
+                    waterFlowRate: this.modelState.waterFlowRate,
+                    tankVolume: this.modelState.tankVolume,
+                    status: waterTankStatus
+                });
             }
         }
         
@@ -1670,27 +1747,31 @@ class ThreeJSVisualizer {
                     this.freezerTunnel.material.emissiveIntensity = intensity;
                 }
                 
-                // Update freezer tunnel tag
+                // Update freezer tunnel tag - make sure to get the latest state
                 if (this.tags['FreezerTunnel']) {
+                    const state = twinState.features.FreezerTunnel.properties.Status || 'RUNNING';
                     this.updateTagContent('FreezerTunnel', {
                         freezerTemperature: freezerTemp,
                         conveyorSpeed: this.modelState.conveyorSpeed,
-                        state: twinState.features.FreezerTunnel.properties.State || 'RUNNING'
+                        status: state
                     });
                 }
             }
         }
         
-        // Update freezer tunnel state
-        if (twinState.features?.FreezerTunnel?.properties?.State !== undefined) {
-            const freezerState = twinState.features.FreezerTunnel.properties.State;
+        // Update freezer tunnel state - changed from State to Status for consistency
+        if (twinState.features?.FreezerTunnel?.properties?.Status !== undefined) {
+            const freezerStatus = twinState.features.FreezerTunnel.properties.Status;
             
-            // Update freezer tunnel tag
+            // Store the status in the model state for use in animation updates
+            this.modelState.freezerStatus = freezerStatus;
+
+            // Update freezer tunnel tag with the status directly from the backend
             if (this.tags['FreezerTunnel']) {
                 this.updateTagContent('FreezerTunnel', {
                     freezerTemperature: this.modelState.freezerTemperature,
                     conveyorSpeed: this.modelState.conveyorSpeed,
-                    state: freezerState
+                    status: freezerStatus // Use the status directly from the backend
                 });
             }
         }
@@ -1707,11 +1788,14 @@ class ThreeJSVisualizer {
                     this.modelState.linerRPM = linerRPM;
                 }
                 
-                // Update tag content for plastic liner
+                // Get the latest status directly from the backend
+                const linerStatus = twinState.features.PlasticLiner?.properties?.Status || 'NORMAL';
+                
+                // Update tag content for plastic liner with the latest status
                 if (this.tags['PlasticLiner']) {
                     this.updateTagContent('PlasticLiner', {
                         linerRPM: linerRPM,
-                        status: twinState.features?.PlasticLiner?.properties?.Status || 'NORMAL'
+                        status: linerStatus
                     });
                 }
             }
@@ -1721,11 +1805,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.PlasticLiner?.properties?.Status !== undefined) {
             const linerStatus = twinState.features.PlasticLiner.properties.Status;
             
-            // Update tag content for plastic liner
+            // Store the status in the model state for use in animation updates
+            this.modelState.linerStatus = linerStatus;
+            
+            // Update tag content for plastic liner with the status directly from the backend
             if (this.tags['PlasticLiner']) {
                 this.updateTagContent('PlasticLiner', {
                     linerRPM: this.modelState.linerRPM,
-                    status: linerStatus
+                    status: linerStatus // Use the status directly from the backend
                 });
             }
         }
@@ -1736,12 +1823,15 @@ class ThreeJSVisualizer {
             if (!isNaN(formerRate)) {
                 this.modelState.cookieFormerRate = formerRate;
                 
+                // Get the latest status directly from the backend
+                const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
+                
                 // Update tag content for cookie former
                 if (this.tags['CookieFormer']) {
                     this.updateTagContent('CookieFormer', {
                         cookieFormerRate: formerRate,
                         goodParts: this.modelState.goodParts,
-                        status: twinState.features?.CookieFormer?.properties?.Status || 'OPERATIONAL'
+                        status: formerStatus
                     });
                 }
             }
@@ -1753,12 +1843,15 @@ class ThreeJSVisualizer {
             if (!isNaN(goodParts)) {
                 this.modelState.goodParts = goodParts;
                 
+                // Get the latest status directly from the backend
+                const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
+                
                 // Update tag content for cookie former
                 if (this.tags['CookieFormer']) {
                     this.updateTagContent('CookieFormer', {
                         cookieFormerRate: this.modelState.cookieFormerRate,
                         goodParts: goodParts,
-                        status: twinState.features?.CookieFormer?.properties?.Status || 'OPERATIONAL'
+                        status: formerStatus
                     });
                 }
             }
@@ -1768,12 +1861,15 @@ class ThreeJSVisualizer {
         if (twinState.features?.CookieFormer?.properties?.Status !== undefined) {
             const formerStatus = twinState.features.CookieFormer.properties.Status;
             
-            // Update tag content for cookie former
+            // Store the status in the model state for use in animation updates
+            this.modelState.cookieFormerStatus = formerStatus;
+            
+            // Update tag content for cookie former with the status directly from the backend
             if (this.tags['CookieFormer']) {
                 this.updateTagContent('CookieFormer', {
                     cookieFormerRate: this.modelState.cookieFormerRate,
                     goodParts: this.modelState.goodParts,
-                    status: formerStatus
+                    status: formerStatus // Use the status directly from the backend
                 });
             }
         }
@@ -1785,11 +1881,14 @@ class ThreeJSVisualizer {
                 // Store the box sealer speed separately
                 this.modelState.boxSealerSpeed = boxSealerSpeed;
                 
+                // Get the latest status directly from the backend
+                const boxSealerStatus = twinState.features.BoxSealer?.properties?.Status || 'OPERATIONAL';
+                
                 // Update tag content for box sealer
                 if (this.tags['BoxSealer']) {
                     this.updateTagContent('BoxSealer', {
                         conveyorSpeed: boxSealerSpeed,
-                        status: twinState.features?.BoxSealer?.properties?.Status || 'OPERATIONAL'
+                        status: boxSealerStatus
                     });
                 }
             }
@@ -1799,11 +1898,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.BoxSealer?.properties?.Status !== undefined) {
             const boxSealerStatus = twinState.features.BoxSealer.properties.Status;
             
-            // Update tag content for box sealer
+            // Store the status in the model state for use in animation updates
+            this.modelState.boxSealerStatus = boxSealerStatus;
+            
+            // Update tag content for box sealer with the status directly from the backend
             if (this.tags['BoxSealer']) {
                 this.updateTagContent('BoxSealer', {
                     conveyorSpeed: this.modelState.boxSealerSpeed || this.modelState.conveyorSpeed,
-                    status: boxSealerStatus
+                    status: boxSealerStatus // Use the status directly from the backend
                 });
             }
         }
@@ -1814,11 +1916,14 @@ class ThreeJSVisualizer {
             if (!isNaN(conveyorSpeed)) {
                 this.modelState.conveyorSpeed = conveyorSpeed;
                 
+                // Get the latest status directly from the backend
+                const conveyorStatus = twinState.features.Conveyor?.properties?.Status || 'RUNNING';
+                
                 // Update conveyor system tag
                 if (this.tags['ConveyorSystem']) {
                     this.updateTagContent('ConveyorSystem', {
                         conveyorSpeed: conveyorSpeed,
-                        status: twinState.features?.Conveyor?.properties?.Status || 'RUNNING'
+                        status: conveyorStatus
                     });
                 }
             }
@@ -1828,11 +1933,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.Conveyor?.properties?.Status !== undefined) {
             const conveyorStatus = twinState.features.Conveyor.properties.Status;
             
-            // Update conveyor system tag
+            // Store the status in the model state for use in animation updates
+            this.modelState.conveyorStatus = conveyorStatus;
+            
+            // Update conveyor system tag with the status directly from the backend
             if (this.tags['ConveyorSystem']) {
                 this.updateTagContent('ConveyorSystem', {
                     conveyorSpeed: this.modelState.conveyorSpeed,
-                    status: conveyorStatus
+                    status: conveyorStatus // Use the status directly from the backend
                 });
             }
         }
@@ -2021,7 +2129,7 @@ class ThreeJSVisualizer {
                     this.updateTagContent('FreezerTunnel', {
                         freezerTemperature: parseFloat(freezerData.Temperature || this.modelState.freezerTemperature),
                         conveyorSpeed: this.modelState.conveyorSpeed,
-                        state: freezerData.State || 'RUNNING'
+                        status: freezerData.Status || 'RUNNING'  // Changed from State to Status
                     });
                 }
                 break;
@@ -2072,7 +2180,8 @@ class ThreeJSVisualizer {
                     const tankData = twinState.features.WaterTank.properties;
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: parseFloat(tankData.flowRate1 || this.modelState.waterFlowRate),
-                        tankVolume: parseFloat(tankData.tankVolume1 || this.modelState.tankVolume)
+                        tankVolume: parseFloat(tankData.tankVolume1 || this.modelState.tankVolume),
+                        status: tankData.Status || this.modelState.waterTankStatus || 'NORMAL'
                     });
                 }
                 break;
