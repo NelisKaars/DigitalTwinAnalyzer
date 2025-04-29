@@ -7,10 +7,10 @@ version: "1.0"
 setup:
   # Start Eclipse Ditto backend
   ditto:
-    description: "Start Eclipse Ditto backend services using Docker Compose"
+    description: "Start Eclipse Ditto backend services using Docker Compose or Podman"
     commands:
-      - cd ../ditto-master/deployment/docker && docker compose up -d
-    check_command: "docker ps | grep ditto"
+      - cd ../ditto-master/deployment/docker && podman compose up -d
+    check_command: "podman ps | grep ditto"
     success_message: "Ditto services started successfully"
     failure_message: "Failed to start Ditto services"
 
@@ -22,7 +22,7 @@ shutdown:
   stop_ditto:
     description: "Stop Eclipse Ditto backend services"
     commands:
-      - cd ../ditto-master/deployment/docker && docker compose down
+      - cd ../ditto-master/deployment/docker && podman compose down
     success_message: "Ditto services stopped successfully"
     failure_message: "Failed to stop Ditto services"
 

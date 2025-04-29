@@ -9,8 +9,8 @@ const Simulation = {
         isPaused: false,               // Whether simulation is paused
         startTime: 0,                  // When simulation started
         elapsedTime: 0,                // Total elapsed time
-        duration: 60,                  // Total duration in seconds
-        cameraPathDuration: 5,        // Time to complete full camera path in seconds
+        duration: 90,                  // Total duration in seconds
+        cameraPathDuration: 95,        // Time to complete full camera path in seconds
         dataUpdateInterval: 2000,      // How often to update digital twin data (ms)
         lastDataUpdate: 0,             // Timestamp of last data update
         waypointIndex: 0,              // Current waypoint index
@@ -25,57 +25,97 @@ const Simulation = {
             position: [50, 50, -100],        // Move to the hall next to production line
             target: [0, 0, 0],
             up: [0, 1, 0]
-        }
-        // { 
-        //     position: [7, 3, 0],        // Move toward production line
-        //     target: [7, 3, 15],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [7, 3, 15],       // Move toward production line
-        //     target: [7, 3, 15],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [8, 3, -10],       // Take a left to production line
-        //     target: [2, 2, -10],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [5, 3, -15],       // Walk to the left around production line
-        //     target: [0, 2, -12],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [0, 3, -15],       // Close up of production line (Data changed so plastic liner is sped up)
-        //     target: [0, 1, -10],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [-8, 4, -5],       // Walk through freezer tunnel (alarm should go off or something so visuals are affected)
-        //     target: [-5, 2, 0],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [-15, 3, 0],       // Walk towards door cookiemixer room
-        //     target: [-8, 2, 0],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [-10, 3, 5],       // Walk through door cookiemixer room
-        //     target: [-8, 2, 5],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [22, 3, 69],        /// Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
-        //     target: [22, 3, 69],
-        //     up: [0, 1, 0]
-        // },
-        // { 
-        //     position: [0, 8, 0],         // turn around go up and whilst looking down to see the entire factory (the end)
-        //     target: [0, 0, 0],
-        //     up: [0, 0, 1]
-        // }
+        },
+        { 
+            position: [7, 3, -20],        // Move toward production line
+            target: [7, 3, 15],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [7, 3, 15],       // Move toward production line
+            target: [42, 3, 65],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [42, 3, 15],       // Take a left to production line
+            target: [36, 3, 28],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [37, 2, 28],       // Walk to the left around production line
+            target: [35, 1, 28],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [37, 2, 35],       // Close up of production line (Data changed so plastic liner is sped up)
+            target: [35, 1, 35],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [40, 3, 37],       // Close up of production line (Data changed so plastic liner is sped up)
+            target: [35, 1, 35],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [38, 3, 40],       // Walk through freezer tunnel (alarm should go off or something so visuals are affected)
+            target: [32, 2, 40],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [38, 3, 47],       // Walk through freezer tunnel (alarm should go off or something so visuals are affected)
+            target: [32, 2, 47],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [42, 3, 60],       // Walk towards door cookiemixer room
+            target: [32, 2, 47],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [37, 3, 60],       // Walk towards door cookiemixer room
+            target: [22.5, 3, 69],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 3, 60],       // Walk towards door cookiemixer room
+            target: [22.5, 3, 68],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 2, 66],       // Walk through door cookiemixer room
+            target: [22.5, 1, 80],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 2, 66],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
+            target: [22.5, 1, 80],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 2, 66],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
+            target: [22.5, 1, 80],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 2, 71],         // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [31, 1, 71],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 2, 76],         // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [31, 1, 71],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [22.5, 25, 100],      // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [0, 0, 0],
+            up: [0, 1, 0]
+        },
+        {
+            position: [22.5, 50, 120],        // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [0, 0, 0],
+            up: [0, 1, 0]
+        },
     ],
     
     // Property update patterns - how values change during simulation
