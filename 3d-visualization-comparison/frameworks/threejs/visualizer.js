@@ -27,19 +27,12 @@ class ThreeJSVisualizer {
         this.modelObject = null;
         this.rotatingPart = null;
 
-        // Factory scene components
+        // Factory scene components - 3D models/meshes
         this.factoryScene = null;
-        this.mixerModels = [];
         this.factoryEnvironment = null;
-        this.waterTank = null;
         this.cookieLines = [];
+        this.mixerModels = [];
         this.selectedMixer = null;
-
-        // Additional factory equipment
-        this.freezerTunnel = null;
-        this.plasticLiner = null;
-        this.cookieFormer = null;
-        this.boxSealer = null;
         this.conveyors = {};
 
         // Floating tags for real-time data
@@ -47,27 +40,45 @@ class ThreeJSVisualizer {
         this.tagOpacity = 0.8;
         this.showTags = true;
 
-        // State tracking
-        this.isInitialized = false;
-        this.animationFrame = null;
-        this.lastUpdateTime = 0;
-        this.modelState = {
-            temperature: 100,
-            rpm: 60,
-            status: 'NORMAL',
-            waterFlowRate: 35,
-            tankVolume: 75,
-            waterTankStatus: 'NORMAL',    // Add water tank specific status
-            freezerTemperature: -15,
-            freezerStatus: 'RUNNING',    // Add component-specific status
-            linerRPM: 45,
-            linerStatus: 'NORMAL',       // Add component-specific status
-            cookieFormerRate: 120,
-            cookieFormerStatus: 'OPERATIONAL',  // Add component-specific status
-            boxSealerStatus: 'OPERATIONAL',     // Add component-specific status
-            conveyorSpeed: 0.8,
-            conveyorStatus: 'RUNNING',   // Add component-specific status
-            goodParts: 98.5
+        // Component state objects - properly structured by component
+        this.components = {
+            mixers: {
+                status: 'NORMAL',
+                temperature: 100,
+                rpm: 60
+            },
+            waterTank: {
+                object3D: null,
+                flowRate: 35,
+                tankVolume: 75,
+                status: 'NORMAL'
+            },
+            freezerTunnel: {
+                object3D: null,
+                temperature: -15,
+                speed: 0.8, // Freezer tunnel has its own speed
+                status: 'NORMAL'
+            },
+            plasticLiner: {
+                object3D: null,
+                rpm: 45,
+                status: 'NORMAL'
+            },
+            cookieFormer: {
+                object3D: null,
+                rate: 120,
+                goodParts: 98.5,
+                status: 'NORMAL'
+            },
+            boxSealer: {
+                object3D: null,
+                speed: 0.8, // Box sealer has its own speed
+                status: 'NORMAL'
+            },
+            conveyorSystem: {
+                speed: 0.8,
+                status: 'NORMAL'
+            }
         };
 
         // Effects
@@ -85,6 +96,9 @@ class ThreeJSVisualizer {
 
         // For textures (especially conveyor belts and plastic liner)
         this.textureOffsets = {};
+        
+        // For backwards compatibility during refactoring
+        this.modelState = {}; 
     }
 
     /**
@@ -96,23 +110,16 @@ class ThreeJSVisualizer {
      */
     initialize(options) {
         this.container = options.container;
-        this.modelId = options.modelId;
+        this.modelId = 'factory'; // Always use factory model
         this.onReady = options.onReady || (() => { });
 
         // Create scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xf0f0f0);
 
-        // Create camera
+        // Create camera - always use factory view settings
         this.camera = new THREE.PerspectiveCamera(75, this.container.clientWidth / this.container.clientHeight, 0.1, 1000);
-
-        if (this.modelId === 'factory') {
-            // Position camera further back for factory view
-            this.camera.position.set(35, 30, 100);
-        } else {
-            // Default camera position for mixer
-            this.camera.position.set(0, 2, 5);
-        }
+        this.camera.position.set(35, 30, 100);
 
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -124,15 +131,18 @@ class ThreeJSVisualizer {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
+        
+        // Set zoom limits for factory view
+        this.controls.minDistance = 5;   // Minimum zoom distance
+        this.controls.maxDistance = 200; // Maximum zoom distance
 
         // Lighting
         this.setupLighting();
 
-        // Ground plane
-        this.setupGround();
+        // Skip ground plane for factory model as it has its own floor
 
-        // Load model
-        this.loadModel();
+        // Load factory model
+        this.loadFactoryModel();
 
         // Setup window resize handler
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -180,23 +190,11 @@ class ThreeJSVisualizer {
     }
 
     /**
-     * Load the 3D model based on modelId
+     * Load the factory model
      */
     loadModel() {
-        if (this.modelId === 'factory') {
-            this.loadFactoryModel();
-        } else {
-            // Load single mixer model
-            const modelPath = ModelLoader.getModelPath('threejs', 'mixer');
-
-            const loader = new THREE.GLTFLoader();
-            loader.load(
-                modelPath,
-                this.onModelLoaded.bind(this),
-                this.onLoadProgress.bind(this),
-                this.onLoadError.bind(this)
-            );
-        }
+        // Always load factory model
+        this.loadFactoryModel();
     }
 
     /**
@@ -229,9 +227,9 @@ class ThreeJSVisualizer {
 
             // Load water tank
             loader.load(paths.models.waterTank, (gltf) => {
-                this.waterTank = gltf.scene;
-                this.applyModelTransform(this.waterTank, this.factoryScene.waterTank);
-                this.scene.add(this.waterTank);
+                this.components.waterTank.object3D = gltf.scene;
+                this.applyModelTransform(this.components.waterTank.object3D, this.factoryScene.waterTank);
+                this.scene.add(this.components.waterTank.object3D);
                 this.checkAllModelsLoaded();
             });
 
@@ -305,13 +303,13 @@ class ThreeJSVisualizer {
 
             // Freezer tunnel
             if (name.includes('freezer') || name.includes('tunnel')) {
-                this.freezerTunnel = node;
+                this.components.freezerTunnel.object3D = node;
                 node.userData.type = 'freezer';
                 node.material = node.material.clone(); // Clone material for individual coloring
             }
             // Plastic liner
             else if (name.includes('plastic') || name.includes('liner')) {
-                this.plasticLiner = node;
+                this.components.plasticLiner.object3D = node;
                 node.userData.type = 'liner';
                 node.material = node.material.clone();
 
@@ -364,13 +362,13 @@ class ThreeJSVisualizer {
             }
             // Cookie former
             else if (name.includes('cookie') && name.includes('form')) {
-                this.cookieFormer = node;
+                this.components.cookieFormer.object3D = node;
                 node.userData.type = 'former';
                 node.material = node.material.clone();
             }
             // Box sealer
             else if (name.includes('box') && (name.includes('seal') || name.includes('erect'))) {
-                this.boxSealer = node;
+                this.components.boxSealer.object3D = node;
                 node.userData.type = 'sealer';
                 node.material = node.material.clone();
             }
@@ -478,7 +476,7 @@ class ThreeJSVisualizer {
         const requiredComponentCount = 2 + this.factoryScene.cookieLines.length; // Environment + WaterTank + Lines
         const expectedMixerCount = Math.min(6, this.factoryScene.mixers.length);
         const loadedComponentCount = (this.factoryEnvironment ? 1 : 0) +
-            (this.waterTank ? 1 : 0) +
+            (this.components.waterTank.object3D ? 1 : 0) +
             this.cookieLines.length;
 
         if (loadedComponentCount >= requiredComponentCount && this.mixerModels.length >= expectedMixerCount) {
@@ -555,9 +553,9 @@ class ThreeJSVisualizer {
             tagElement.style.transition = `transform ${this.tagScaleTransition}s ease-out, opacity ${this.tagScaleTransition}s ease-out`;
             tagElement.innerHTML = `
                 <div><strong>${mixer.name}</strong></div>
-                <div>Temperature: ${this.modelState.temperature}°C</div>
-                <div>RPM: ${this.modelState.rpm}</div>
-                <div>Status: ${this.modelState.status}</div>
+                <div>Temperature: ${this.components.mixers.temperature}°C</div>
+                <div>RPM: ${this.components.mixers.rpm}</div>
+                <div>Status: ${this.components.mixers.status}</div>
             `;
 
             // Add mouse interaction
@@ -578,7 +576,7 @@ class ThreeJSVisualizer {
         });
 
         // Create tag for water tank
-        if (this.waterTank) {
+        if (this.components.waterTank.object3D) {
             const tagId = 'WaterTank';
             const tagGroup = new THREE.Group();
 
@@ -604,9 +602,9 @@ class ThreeJSVisualizer {
             tagElement.style.transition = `transform ${this.tagScaleTransition}s ease-out, opacity ${this.tagScaleTransition}s ease-out`;
             tagElement.innerHTML = `
                 <div><strong>Water Tank</strong></div>
-                <div>Flow Rate: ${this.modelState.waterFlowRate}</div>
-                <div>Volume: ${this.modelState.tankVolume}%</div>
-                <div>Status: ${this.modelState.waterTankStatus}</div>
+                <div>Flow Rate: ${this.components.waterTank.flowRate}</div>
+                <div>Volume: ${this.components.waterTank.tankVolume}%</div>
+                <div>Status: ${this.components.waterTank.status}</div>
             `;
 
             // Add mouse interaction
@@ -621,56 +619,56 @@ class ThreeJSVisualizer {
                 type: 'watertank'
             };
 
-            this.waterTank.add(tagGroup);
+            this.components.waterTank.object3D.add(tagGroup);
         }
 
         // Create tags for additional components from CookieFactoryV3
 
         // Freezer Tunnel tag
-        if (this.freezerTunnel) {
-            this.createComponentTag('FreezerTunnel', this.freezerTunnel, {
+        if (this.components.freezerTunnel.object3D) {
+            this.createComponentTag('FreezerTunnel', this.components.freezerTunnel.object3D, {
                 position: [0, 3, 0],
                 content: `
                     <div><strong>Freezer Tunnel</strong></div>
-                    <div>Temperature: ${this.modelState.freezerTemperature}°C</div>
-                    <div>Speed: ${this.modelState.conveyorSpeed} m/s</div>
-                    <div>Status: RUNNING</div>
+                    <div>Temperature: ${this.components.freezerTunnel.temperature}°C</div>
+                    <div>Speed: ${this.components.freezerTunnel.speed} m/s</div>
+                    <div>Status: ${this.components.freezerTunnel.status}</div>
                 `
             });
         }
 
         // Plastic Liner tag
-        if (this.plasticLiner) {
-            this.createComponentTag('PlasticLiner', this.plasticLiner, {
+        if (this.components.plasticLiner.object3D) {
+            this.createComponentTag('PlasticLiner', this.components.plasticLiner.object3D, {
                 position: [0, 2.5, 0],
                 content: `
                     <div><strong>Plastic Liner</strong></div>
-                    <div>RPM: ${this.modelState.linerRPM}</div>
-                    <div>Status: NORMAL</div>
+                    <div>RPM: ${this.components.plasticLiner.rpm}</div>
+                    <div>Status: ${this.components.plasticLiner.status}</div>
                 `
             });
         }
 
         // Cookie Former tag
-        if (this.cookieFormer) {
-            this.createComponentTag('CookieFormer', this.cookieFormer, {
+        if (this.components.cookieFormer.object3D) {
+            this.createComponentTag('CookieFormer', this.components.cookieFormer.object3D, {
                 position: [0, 3, 0],
                 content: `
                     <div><strong>Cookie Former</strong></div>
-                    <div>Rate: ${this.modelState.cookieFormerRate}/min</div>
-                    <div>Good Parts: ${this.modelState.goodParts}%</div>
+                    <div>Rate: ${this.components.cookieFormer.rate}/min</div>
+                    <div>Good Parts: ${this.components.cookieFormer.goodParts}%</div>
                 `
             });
         }
 
         // Box Sealer tag
-        if (this.boxSealer) {
-            this.createComponentTag('BoxSealer', this.boxSealer, {
+        if (this.components.boxSealer.object3D) {
+            this.createComponentTag('BoxSealer', this.components.boxSealer.object3D, {
                 position: [0, 3, 0],
                 content: `
                     <div><strong>Box Sealer</strong></div>
-                    <div>Speed: ${this.modelState.conveyorSpeed} m/s</div>
-                    <div>Status: OPERATIONAL</div>
+                    <div>Speed: ${this.components.boxSealer.speed} m/s</div>
+                    <div>Status: ${this.components.boxSealer.status}</div>
                 `
             });
         }
@@ -684,8 +682,8 @@ class ThreeJSVisualizer {
                 position: [0, 2, 0],
                 content: `
                     <div><strong>Conveyor System</strong></div>
-                    <div>Speed: ${this.modelState.conveyorSpeed} m/s</div>
-                    <div>Status: RUNNING</div>
+                    <div>Speed: ${this.components.conveyorSystem.speed} m/s</div>
+                    <div>Status: ${this.components.conveyorSystem.status}</div>
                 `
             });
         }
@@ -788,31 +786,31 @@ class ThreeJSVisualizer {
 
         switch (tagId) {
             case 'WaterTank':
-                targetObject = this.waterTank;
+                targetObject = this.components.waterTank.object3D;
                 // Update global state to show water tank parameters
                 window.dashboardState = window.dashboardState || {};
                 window.dashboardState.activeComponent = 'water-tank';
                 break;
             case 'FreezerTunnel':
-                targetObject = this.freezerTunnel;
+                targetObject = this.components.freezerTunnel.object3D;
                 // Update global state to show freezer tunnel parameters
                 window.dashboardState = window.dashboardState || {};
                 window.dashboardState.activeComponent = 'freezer-tunnel';
                 break;
             case 'PlasticLiner':
-                targetObject = this.plasticLiner;
+                targetObject = this.components.plasticLiner.object3D;
                 // Update global state to show plastic liner parameters
                 window.dashboardState = window.dashboardState || {};
                 window.dashboardState.activeComponent = 'plastic-liner';
                 break;
             case 'CookieFormer':
-                targetObject = this.cookieFormer;
+                targetObject = this.components.cookieFormer.object3D;
                 // Update global state to show cookie former parameters
                 window.dashboardState = window.dashboardState || {};
                 window.dashboardState.activeComponent = 'cookie-former';
                 break;
             case 'BoxSealer':
-                targetObject = this.boxSealer;
+                targetObject = this.components.boxSealer.object3D;
                 // Update global state to show box sealer parameters
                 window.dashboardState = window.dashboardState || {};
                 window.dashboardState.activeComponent = 'box-sealer';
@@ -843,43 +841,43 @@ class ThreeJSVisualizer {
                         case 'FreezerTunnel':
                             if (state.features.FreezerTunnel?.properties?.Temperature !== undefined) {
                                 const freezerTemp = parseFloat(state.features.FreezerTunnel.properties.Temperature);
-                                this.modelState.freezerTemperature = freezerTemp;
+                                this.components.freezerTunnel.temperature = freezerTemp;
                                 
                                 // Apply visual changes directly to the freezer tunnel
-                                if (this.freezerTunnel && this.freezerTunnel.material) {
+                                if (this.components.freezerTunnel.object3D && this.components.freezerTunnel.object3D.material) {
                                     const intensity = Math.min(1.0, Math.max(0.0, (-freezerTemp + 10) / 30));
                                     const color = new THREE.Color(0.2, 0.4, 0.8); // Blue-ish color for freezer
-                                    this.freezerTunnel.material.emissive = color;
-                                    this.freezerTunnel.material.emissiveIntensity = intensity;
+                                    this.components.freezerTunnel.object3D.material.emissive = color;
+                                    this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
                                 }
                             }
                             break;
                         case 'PlasticLiner':
                             if (state.features.PlasticLiner?.properties?.RPM !== undefined) {
                                 const linerRPM = parseFloat(state.features.PlasticLiner.properties.RPM);
-                                this.modelState.linerRPM = linerRPM;
+                                this.components.plasticLiner.rpm = linerRPM;
                             }
                             break;
                         case 'CookieFormer':
                             if (state.features.CookieFormer?.properties?.Rate !== undefined) {
                                 const formerRate = parseFloat(state.features.CookieFormer.properties.Rate);
-                                this.modelState.cookieFormerRate = formerRate;
+                                this.components.cookieFormer.rate = formerRate;
                             }
                             if (state.features.CookieFormer?.properties?.GoodParts !== undefined) {
                                 const goodParts = parseFloat(state.features.CookieFormer.properties.GoodParts);
-                                this.modelState.goodParts = goodParts;
+                                this.components.cookieFormer.goodParts = goodParts;
                             }
                             break;
                         case 'BoxSealer':
                             if (state.features.BoxSealer?.properties?.Speed !== undefined) {
                                 const boxSealerSpeed = parseFloat(state.features.BoxSealer.properties.Speed);
-                                this.modelState.boxSealerSpeed = boxSealerSpeed;
+                                this.components.boxSealer.speed = boxSealerSpeed;
                             }
                             break;
                         case 'ConveyorSystem':
                             if (state.features.Conveyor?.properties?.Speed !== undefined) {
                                 const conveyorSpeed = parseFloat(state.features.Conveyor.properties.Speed);
-                                this.modelState.conveyorSpeed = conveyorSpeed;
+                                this.components.conveyorSystem.speed = conveyorSpeed;
                             }
                             break;
                     }
@@ -1054,7 +1052,7 @@ class ThreeJSVisualizer {
                 <div><strong>Water Tank</strong></div>
                 <div>Flow Rate: ${data.waterFlowRate}</div>
                 <div>Volume: ${data.tankVolume}%</div>
-                <div>Status: ${data.status || 'NORMAL'}</div>
+                <div>Status: ${data.status}</div>
             `;
 
             // Update color based on flow rate
@@ -1078,7 +1076,7 @@ class ThreeJSVisualizer {
             tag.element.innerHTML = `
                 <div><strong>Freezer Tunnel</strong></div>
                 <div>Temperature: ${data.freezerTemperature}°C</div>
-                <div>Speed: ${data.conveyorSpeed} m/s</div>
+                <div>Speed: ${data.freezerSpeed} m/s</div>
                 <div>Status: ${data.status}</div>
             `;
             
@@ -1086,7 +1084,7 @@ class ThreeJSVisualizer {
             const freezerColor = this.getFreezerTemperatureColor(data.freezerTemperature);
             tag.element.style.borderLeft = `4px solid ${freezerColor}`;
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
                 tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
@@ -1098,7 +1096,7 @@ class ThreeJSVisualizer {
             tag.element.innerHTML = `
                 <div><strong>Plastic Liner</strong></div>
                 <div>RPM: ${data.linerRPM}</div>
-                <div>Status: ${data.status || 'NORMAL'}</div>
+                <div>Status: ${data.status}</div>
             `;
             
             // Color based on RPM
@@ -1123,7 +1121,7 @@ class ThreeJSVisualizer {
                 <div><strong>Cookie Former</strong></div>
                 <div>Rate: ${data.cookieFormerRate}/min</div>
                 <div>Good Parts: ${data.goodParts}%</div>
-                <div>Status: ${data.status || 'NORMAL'}</div>
+                <div>Status: ${data.status}</div>
             `;
             
             // Color based on good parts percentage
@@ -1146,14 +1144,21 @@ class ThreeJSVisualizer {
         } else if (tag.type === 'BoxSealer') {
             tag.element.innerHTML = `
                 <div><strong>Box Sealer</strong></div>
-                <div>Speed: ${data.conveyorSpeed} m/s</div>
-                <div>Status: ${data.status || 'NORMAL'}</div>
+                <div>Speed: ${data.boxSealerSpeed} m/s</div>
+                <div>Status: ${data.status}</div>
             `;
 
-            // Default border
-            tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+            // Color based on speed
+            const speed = data.boxSealerSpeed;
+            if (speed > 1.5) {
+                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high speed
+            } else if (speed < 0.3) {
+                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low speed
+            } else {
+                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+            }
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
                 tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
@@ -1165,7 +1170,7 @@ class ThreeJSVisualizer {
             tag.element.innerHTML = `
                 <div><strong>Conveyor System</strong></div>
                 <div>Speed: ${data.conveyorSpeed} m/s</div>
-                <div>Status: ${data.status || 'NORMAL'}</div>
+                <div>Status: ${data.status}</div>
             `;
             
             // Color based on speed
@@ -1329,13 +1334,8 @@ class ThreeJSVisualizer {
         // Update controls
         this.controls.update();
 
-        if (this.modelId === 'factory') {
-            // Update factory model
-            this.updateFactoryAnimation(time, deltaTime);
-        } else {
-            // Update single mixer model
-            this.updateMixerAnimation(time, deltaTime);
-        }
+        // Update factory model
+        this.updateFactoryAnimation(time, deltaTime);
 
         // Update floating tag positions
         this.updateTagPositions();
@@ -1351,20 +1351,20 @@ class ThreeJSVisualizer {
         // Rotate the mixer part based on RPM
         if (this.rotatingPart) {
             // Convert RPM to radians per second
-            const radiansPerSecond = (this.modelState.rpm / 60) * Math.PI * 2;
+            const radiansPerSecond = (this.components.mixers.rpm / 60) * Math.PI * 2;
             this.rotatingPart.rotation.y += radiansPerSecond * deltaTime;
         }
 
         // Update temperature visual effects
         if (this.temperatureLight) {
-            const tempMapping = DTProperties.mapTemperature(this.modelState.temperature);
+            const tempMapping = DTProperties.mapTemperature(this.components.mixers.temperature);
             this.temperatureLight.color.setHex(tempMapping.color);
             this.temperatureLight.intensity = tempMapping.intensity;
         }
 
         // Update status indicator
         if (this.statusIndicator) {
-            const statusMapping = DTProperties.mapAlarmStatus(this.modelState.status);
+            const statusMapping = DTProperties.mapAlarmStatus(this.components.mixers.status);
             this.statusIndicator.material.color.setHex(statusMapping.color);
 
             // Handle blinking if needed
@@ -1387,9 +1387,9 @@ class ThreeJSVisualizer {
         this.mixerModels.forEach(mixer => {
             // Get mixer-specific data if available, otherwise use global modelState
             const mixerData = mixer.data || {};
-            const temperature = mixerData.temperature !== undefined ? mixerData.temperature : this.modelState.temperature;
-            const rpm = mixerData.rpm !== undefined ? mixerData.rpm : this.modelState.rpm;
-            const status = mixerData.status !== undefined ? mixerData.status : this.modelState.status;
+            const temperature = mixerData.temperature !== undefined ? mixerData.temperature : this.components.mixers.temperature;
+            const rpm = mixerData.rpm !== undefined ? mixerData.rpm : this.components.mixers.rpm;
+            const status = mixerData.status !== undefined ? mixerData.status : this.components.mixers.status;
             
             // Find the rotating parts and rotate them
             const rotationSpeed = (rpm / 60) * Math.PI * 2;
@@ -1427,10 +1427,10 @@ class ThreeJSVisualizer {
         });
 
         // Update water tank color based on flow rate
-        if (this.waterTank) {
-            const flowRateMapping = DTProperties.mapWaterFlowRate(this.modelState.waterFlowRate);
+        if (this.components.waterTank.object3D) {
+            const flowRateMapping = DTProperties.mapWaterFlowRate(this.components.waterTank.flowRate);
 
-            this.waterTank.traverse((node) => {
+            this.components.waterTank.object3D.traverse((node) => {
                 if (node.isMesh && node.material) {
                     // Find the actual water tank body (not pipes or structure)
                     if (node.name.toLowerCase().includes('water') ||
@@ -1445,53 +1445,53 @@ class ThreeJSVisualizer {
             // Update water tank tag content - Use the stored water tank status
             if (this.tags['WaterTank']) {
                 this.updateTagContent('WaterTank', {
-                    waterFlowRate: this.modelState.waterFlowRate,
-                    tankVolume: this.modelState.tankVolume,
-                    status: this.modelState.waterTankStatus || 'NORMAL'
+                    waterFlowRate: this.components.waterTank.flowRate,
+                    tankVolume: this.components.waterTank.tankVolume,
+                    status: this.components.waterTank.status
                 });
             }
         }
 
         // Update freezer tunnel 
-        if (this.freezerTunnel) {
+        if (this.components.freezerTunnel.object3D) {
             // Update color based on temperature (blue-ish for cold)
-            const freezerTemp = this.modelState.freezerTemperature;
+            const freezerTemp = this.components.freezerTunnel.temperature;
             const intensity = Math.min(1.0, Math.max(0.0, (-freezerTemp + 10) / 30));
             const color = new THREE.Color(0.2, 0.4, 0.8); // Blue-ish color for freezer
 
             // Apply material changes to the freezer tunnel
-            if (this.freezerTunnel.material) {
-                this.freezerTunnel.material.emissive = color;
-                this.freezerTunnel.material.emissiveIntensity = intensity;
+            if (this.components.freezerTunnel.object3D.material) {
+                this.components.freezerTunnel.object3D.material.emissive = color;
+                this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
             }
 
             // Update freezer tunnel tag content - Use the stored freezer status
             if (this.tags['FreezerTunnel']) {
                 this.updateTagContent('FreezerTunnel', {
-                    freezerTemperature: this.modelState.freezerTemperature,
-                    conveyorSpeed: this.modelState.conveyorSpeed,
-                    status: this.modelState.freezerStatus || 'RUNNING' // Use component-specific status
+                    freezerTemperature: this.components.freezerTunnel.temperature,
+                    freezerSpeed: this.components.freezerTunnel.speed,
+                    status: this.components.freezerTunnel.status
                 });
             }
         }
 
         // Update plastic liner - animate texture instead of rotating the object
-        if (this.plasticLiner) {
-            if (this.plasticLiner.material && this.plasticLiner.material.map) {
+        if (this.components.plasticLiner.object3D) {
+            if (this.components.plasticLiner.object3D.material && this.components.plasticLiner.object3D.material.map) {
                 // Update texture offset based on liner RPM
                 // This creates the illusion of a rotating liner without rotating the mesh
                 const offset = this.textureOffsets['plastic_liner'] || { u: 0, v: 0 };
 
                 // The RPM determines how fast the texture rotates
                 // Convert RPM to radians per second, then scale for texture movement
-                const linerRotationSpeed = (this.modelState.linerRPM / 60) * Math.PI * 2;
+                const linerRotationSpeed = (this.components.plasticLiner.rpm / 60) * Math.PI * 2;
                 const textureSpeed = linerRotationSpeed / (Math.PI * 2) * deltaTime;
 
                 // In this case, we want to animate horizontally (u-direction)
                 offset.u -= textureSpeed;
 
                 // Apply the updated offset to the texture
-                this.plasticLiner.material.map.offset.set(offset.u, offset.v);
+                this.components.plasticLiner.object3D.material.map.offset.set(offset.u, offset.v);
 
                 // Store updated offset
                 this.textureOffsets['plastic_liner'] = offset;
@@ -1500,26 +1500,26 @@ class ThreeJSVisualizer {
             // Update plastic liner tag content - Use the stored plastic liner status
             if (this.tags['PlasticLiner']) {
                 this.updateTagContent('PlasticLiner', {
-                    linerRPM: this.modelState.linerRPM,
-                    status: this.modelState.linerStatus || 'NORMAL' // Use component-specific status
+                    linerRPM: this.components.plasticLiner.rpm,
+                    status: this.components.plasticLiner.status
                 });
             }
         }
 
         // Update cookie former - Use the stored cookie former status
-        if (this.cookieFormer && this.tags['CookieFormer']) {
+        if (this.components.cookieFormer.object3D && this.tags['CookieFormer']) {
             this.updateTagContent('CookieFormer', {
-                cookieFormerRate: this.modelState.cookieFormerRate,
-                goodParts: this.modelState.goodParts,
-                status: this.modelState.cookieFormerStatus || 'OPERATIONAL' // Use component-specific status
+                cookieFormerRate: this.components.cookieFormer.rate,
+                goodParts: this.components.cookieFormer.goodParts,
+                status: this.components.cookieFormer.status
             });
         }
 
         // Update box sealer - Use the stored box sealer status
-        if (this.boxSealer && this.tags['BoxSealer']) {
+        if (this.components.boxSealer.object3D && this.tags['BoxSealer']) {
             this.updateTagContent('BoxSealer', {
-                conveyorSpeed: this.modelState.conveyorSpeed,
-                status: this.modelState.boxSealerStatus || 'OPERATIONAL' // Use component-specific status
+                boxSealerSpeed: this.components.boxSealer.speed,
+                status: this.components.boxSealer.status
             });
         }
 
@@ -1532,7 +1532,7 @@ class ThreeJSVisualizer {
 
                 // Advance texture in the v-direction (along the conveyor)
                 // The speed factor controls how fast the texture moves
-                offset.v -= this.modelState.conveyorSpeed * deltaTime * 0.5;
+                offset.v -= this.components.conveyorSystem.speed * deltaTime * 0.5;
 
                 // Apply the updated offset to the texture
                 conveyor.material.map.offset.set(offset.u, offset.v);
@@ -1545,8 +1545,8 @@ class ThreeJSVisualizer {
         // Update conveyor system tag if it exists - Use the stored conveyor status
         if (this.tags['ConveyorSystem']) {
             this.updateTagContent('ConveyorSystem', {
-                conveyorSpeed: this.modelState.conveyorSpeed,
-                status: this.modelState.conveyorStatus || 'RUNNING' // Use component-specific status
+                conveyorSpeed: this.components.conveyorSystem.speed,
+                status: this.components.conveyorSystem.status
             });
         }
     }
@@ -1556,11 +1556,8 @@ class ThreeJSVisualizer {
      * @param {Object} twinState - Digital twin state data
      */
     updateFromTwin(twinState) {
-        if (this.modelId === 'factory') {
-            this.updateFactoryFromTwin(twinState);
-        } else {
-            this.updateMixerFromTwin(twinState);
-        }
+        // Always use factory model update
+        this.updateFactoryFromTwin(twinState);
     }
 
     /**
@@ -1571,7 +1568,7 @@ class ThreeJSVisualizer {
         if (twinState.features?.Mixer?.properties?.Temperature !== undefined) {
             const temp = parseFloat(twinState.features.Mixer.properties.Temperature);
             if (!isNaN(temp)) {
-                this.modelState.temperature = temp;
+                this.components.mixers.temperature = temp;
             }
         }
 
@@ -1579,13 +1576,13 @@ class ThreeJSVisualizer {
         if (twinState.features?.Mixer?.properties?.RPM !== undefined) {
             const rpm = parseFloat(twinState.features.Mixer.properties.RPM);
             if (!isNaN(rpm)) {
-                this.modelState.rpm = rpm;
+                this.components.mixers.rpm = rpm;
             }
         }
 
         // Update status if available
         if (twinState.features?.Alarm?.properties?.alarm_status !== undefined) {
-            this.modelState.status = twinState.features.Alarm.properties.alarm_status;
+            this.components.mixers.status = twinState.features.Alarm.properties.alarm_status;
         }
     }
 
@@ -1614,15 +1611,15 @@ class ThreeJSVisualizer {
                         if (this.tags[mixerKey]) {
                             this.updateTagContent(mixerKey, {
                                 temperature: temp,
-                                rpm: mixer.data.rpm || this.modelState.rpm,
-                                status: mixer.data.status || this.modelState.status
+                                rpm: mixer.data.rpm || this.components.mixers.rpm,
+                                status: mixer.data.status || this.components.mixers.status
                             });
                         }
                     }
                     
                     // Update global state if this is the selected mixer or if 'all' is selected
                     if (selectedMixerName === mixerKey || selectedMixerName === 'all') {
-                        this.modelState.temperature = temp;
+                        this.components.mixers.temperature = temp;
                     }
                 }
             }
@@ -1640,16 +1637,16 @@ class ThreeJSVisualizer {
                         // Update tag if it exists
                         if (this.tags[mixerKey]) {
                             this.updateTagContent(mixerKey, {
-                                temperature: mixer.data.temperature || this.modelState.temperature,
+                                temperature: mixer.data.temperature || this.components.mixers.temperature,
                                 rpm: rpm,
-                                status: mixer.data.status || this.modelState.status
+                                status: mixer.data.status || this.components.mixers.status
                             });
                         }
                     }
                     
                     // Update global state if this is the selected mixer or if 'all' is selected
                     if (selectedMixerName === mixerKey || selectedMixerName === 'all') {
-                        this.modelState.rpm = rpm;
+                        this.components.mixers.rpm = rpm;
                     }
                 }
             }
@@ -1668,8 +1665,8 @@ class ThreeJSVisualizer {
                     // Update tag immediately with the new status
                     if (this.tags[mixerKey]) {
                         this.updateTagContent(mixerKey, {
-                            temperature: mixer.data.temperature || this.modelState.temperature,
-                            rpm: mixer.data.rpm || this.modelState.rpm,
+                            temperature: mixer.data.temperature || this.components.mixers.temperature,
+                            rpm: mixer.data.rpm || this.components.mixers.rpm,
                             status: status  // Use the status directly from the backend
                         });
                     }
@@ -1677,7 +1674,7 @@ class ThreeJSVisualizer {
                 
                 // Update global state if this is the selected mixer or if 'all' is selected
                 if (selectedMixerName === mixerKey || selectedMixerName === 'all') {
-                    this.modelState.status = status;
+                    this.components.mixers.status = status;
                 }
             }
         }
@@ -1686,14 +1683,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.WaterTank?.properties?.flowRate1 !== undefined) {
             const flowRate = parseFloat(twinState.features.WaterTank.properties.flowRate1);
             if (!isNaN(flowRate)) {
-                this.modelState.waterFlowRate = flowRate;
+                this.components.waterTank.flowRate = flowRate;
                 
                 // Update tag content for water tank
                 if (this.tags['WaterTank']) {
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: flowRate,
-                        tankVolume: this.modelState.tankVolume,
-                        status: this.modelState.waterTankStatus || 'NORMAL'
+                        tankVolume: this.components.waterTank.tankVolume,
+                        status: this.components.waterTank.status
                     });
                 }
             }
@@ -1703,14 +1700,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.WaterTank?.properties?.tankVolume1 !== undefined) {
             const tankVolume = parseFloat(twinState.features.WaterTank.properties.tankVolume1);
             if (!isNaN(tankVolume)) {
-                this.modelState.tankVolume = tankVolume;
+                this.components.waterTank.tankVolume = tankVolume;
                 
                 // Update tag content for water tank
                 if (this.tags['WaterTank']) {
                     this.updateTagContent('WaterTank', {
-                        waterFlowRate: this.modelState.waterFlowRate,
+                        waterFlowRate: this.components.waterTank.flowRate,
                         tankVolume: tankVolume,
-                        status: this.modelState.waterTankStatus || 'NORMAL'
+                        status: this.components.waterTank.status
                     });
                 }
             }
@@ -1721,13 +1718,13 @@ class ThreeJSVisualizer {
             const waterTankStatus = twinState.features.WaterTank.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.waterTankStatus = waterTankStatus;
+            this.components.waterTank.status = waterTankStatus;
             
             // Update tag content for water tank with the status directly from the backend
             if (this.tags['WaterTank']) {
                 this.updateTagContent('WaterTank', {
-                    waterFlowRate: this.modelState.waterFlowRate,
-                    tankVolume: this.modelState.tankVolume,
+                    waterFlowRate: this.components.waterTank.flowRate,
+                    tankVolume: this.components.waterTank.tankVolume,
                     status: waterTankStatus
                 });
             }
@@ -1737,14 +1734,14 @@ class ThreeJSVisualizer {
         if (twinState.features?.FreezerTunnel?.properties?.Temperature !== undefined) {
             const freezerTemp = parseFloat(twinState.features.FreezerTunnel.properties.Temperature);
             if (!isNaN(freezerTemp)) {
-                this.modelState.freezerTemperature = freezerTemp;
+                this.components.freezerTunnel.temperature = freezerTemp;
                 
                 // Apply visual changes directly to the freezer tunnel
-                if (this.freezerTunnel && this.freezerTunnel.material) {
+                if (this.components.freezerTunnel.object3D && this.components.freezerTunnel.object3D.material) {
                     const intensity = Math.min(1.0, Math.max(0.0, (-freezerTemp + 10) / 30));
                     const color = new THREE.Color(0.2, 0.4, 0.8); // Blue-ish color for freezer
-                    this.freezerTunnel.material.emissive = color;
-                    this.freezerTunnel.material.emissiveIntensity = intensity;
+                    this.components.freezerTunnel.object3D.material.emissive = color;
+                    this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
                 }
                 
                 // Update freezer tunnel tag - make sure to get the latest state
@@ -1752,7 +1749,7 @@ class ThreeJSVisualizer {
                     const state = twinState.features.FreezerTunnel.properties.Status || 'RUNNING';
                     this.updateTagContent('FreezerTunnel', {
                         freezerTemperature: freezerTemp,
-                        conveyorSpeed: this.modelState.conveyorSpeed,
+                        freezerSpeed: this.components.freezerTunnel.speed,
                         status: state
                     });
                 }
@@ -1764,13 +1761,13 @@ class ThreeJSVisualizer {
             const freezerStatus = twinState.features.FreezerTunnel.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.freezerStatus = freezerStatus;
+            this.components.freezerTunnel.status = freezerStatus;
 
             // Update freezer tunnel tag with the status directly from the backend
             if (this.tags['FreezerTunnel']) {
                 this.updateTagContent('FreezerTunnel', {
-                    freezerTemperature: this.modelState.freezerTemperature,
-                    conveyorSpeed: this.modelState.conveyorSpeed,
+                    freezerTemperature: this.components.freezerTunnel.temperature,
+                    freezerSpeed: this.components.freezerTunnel.speed,
                     status: freezerStatus // Use the status directly from the backend
                 });
             }
@@ -1780,12 +1777,12 @@ class ThreeJSVisualizer {
         if (twinState.features?.PlasticLiner?.properties?.RPM !== undefined) {
             const linerRPM = parseFloat(twinState.features.PlasticLiner.properties.RPM);
             if (!isNaN(linerRPM)) {
-                this.modelState.linerRPM = linerRPM;
+                this.components.plasticLiner.rpm = linerRPM;
                 
                 // Update plastic liner texture animation speed immediately
-                if (this.plasticLiner && this.plasticLiner.material && this.plasticLiner.material.map) {
+                if (this.components.plasticLiner.object3D && this.components.plasticLiner.object3D.material && this.components.plasticLiner.object3D.material.map) {
                     // Store the updated RPM to be used in animation
-                    this.modelState.linerRPM = linerRPM;
+                    this.components.plasticLiner.rpm = linerRPM;
                 }
                 
                 // Get the latest status directly from the backend
@@ -1806,12 +1803,12 @@ class ThreeJSVisualizer {
             const linerStatus = twinState.features.PlasticLiner.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.linerStatus = linerStatus;
+            this.components.plasticLiner.status = linerStatus;
             
             // Update tag content for plastic liner with the status directly from the backend
             if (this.tags['PlasticLiner']) {
                 this.updateTagContent('PlasticLiner', {
-                    linerRPM: this.modelState.linerRPM,
+                    linerRPM: this.components.plasticLiner.rpm,
                     status: linerStatus // Use the status directly from the backend
                 });
             }
@@ -1821,7 +1818,7 @@ class ThreeJSVisualizer {
         if (twinState.features?.CookieFormer?.properties?.Rate !== undefined) {
             const formerRate = parseFloat(twinState.features.CookieFormer.properties.Rate);
             if (!isNaN(formerRate)) {
-                this.modelState.cookieFormerRate = formerRate;
+                this.components.cookieFormer.rate = formerRate;
                 
                 // Get the latest status directly from the backend
                 const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
@@ -1830,7 +1827,7 @@ class ThreeJSVisualizer {
                 if (this.tags['CookieFormer']) {
                     this.updateTagContent('CookieFormer', {
                         cookieFormerRate: formerRate,
-                        goodParts: this.modelState.goodParts,
+                        goodParts: this.components.cookieFormer.goodParts,
                         status: formerStatus
                     });
                 }
@@ -1841,7 +1838,7 @@ class ThreeJSVisualizer {
         if (twinState.features?.CookieFormer?.properties?.GoodParts !== undefined) {
             const goodParts = parseFloat(twinState.features.CookieFormer.properties.GoodParts);
             if (!isNaN(goodParts)) {
-                this.modelState.goodParts = goodParts;
+                this.components.cookieFormer.goodParts = goodParts;
                 
                 // Get the latest status directly from the backend
                 const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
@@ -1849,7 +1846,7 @@ class ThreeJSVisualizer {
                 // Update tag content for cookie former
                 if (this.tags['CookieFormer']) {
                     this.updateTagContent('CookieFormer', {
-                        cookieFormerRate: this.modelState.cookieFormerRate,
+                        cookieFormerRate: this.components.cookieFormer.rate,
                         goodParts: goodParts,
                         status: formerStatus
                     });
@@ -1862,13 +1859,13 @@ class ThreeJSVisualizer {
             const formerStatus = twinState.features.CookieFormer.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.cookieFormerStatus = formerStatus;
+            this.components.cookieFormer.status = formerStatus;
             
             // Update tag content for cookie former with the status directly from the backend
             if (this.tags['CookieFormer']) {
                 this.updateTagContent('CookieFormer', {
-                    cookieFormerRate: this.modelState.cookieFormerRate,
-                    goodParts: this.modelState.goodParts,
+                    cookieFormerRate: this.components.cookieFormer.rate,
+                    goodParts: this.components.cookieFormer.goodParts,
                     status: formerStatus // Use the status directly from the backend
                 });
             }
@@ -1879,7 +1876,7 @@ class ThreeJSVisualizer {
             const boxSealerSpeed = parseFloat(twinState.features.BoxSealer.properties.Speed);
             if (!isNaN(boxSealerSpeed)) {
                 // Store the box sealer speed separately
-                this.modelState.boxSealerSpeed = boxSealerSpeed;
+                this.components.boxSealer.speed = boxSealerSpeed;
                 
                 // Get the latest status directly from the backend
                 const boxSealerStatus = twinState.features.BoxSealer?.properties?.Status || 'OPERATIONAL';
@@ -1899,12 +1896,12 @@ class ThreeJSVisualizer {
             const boxSealerStatus = twinState.features.BoxSealer.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.boxSealerStatus = boxSealerStatus;
+            this.components.boxSealer.status = boxSealerStatus;
             
             // Update tag content for box sealer with the status directly from the backend
             if (this.tags['BoxSealer']) {
                 this.updateTagContent('BoxSealer', {
-                    conveyorSpeed: this.modelState.boxSealerSpeed || this.modelState.conveyorSpeed,
+                    conveyorSpeed: this.components.boxSealer.speed || this.components.conveyorSystem.speed,
                     status: boxSealerStatus // Use the status directly from the backend
                 });
             }
@@ -1914,7 +1911,7 @@ class ThreeJSVisualizer {
         if (twinState.features?.Conveyor?.properties?.Speed !== undefined) {
             const conveyorSpeed = parseFloat(twinState.features.Conveyor.properties.Speed);
             if (!isNaN(conveyorSpeed)) {
-                this.modelState.conveyorSpeed = conveyorSpeed;
+                this.components.conveyorSystem.speed = conveyorSpeed;
                 
                 // Get the latest status directly from the backend
                 const conveyorStatus = twinState.features.Conveyor?.properties?.Status || 'RUNNING';
@@ -1934,12 +1931,12 @@ class ThreeJSVisualizer {
             const conveyorStatus = twinState.features.Conveyor.properties.Status;
             
             // Store the status in the model state for use in animation updates
-            this.modelState.conveyorStatus = conveyorStatus;
+            this.components.conveyorSystem.status = conveyorStatus;
             
             // Update conveyor system tag with the status directly from the backend
             if (this.tags['ConveyorSystem']) {
                 this.updateTagContent('ConveyorSystem', {
-                    conveyorSpeed: this.modelState.conveyorSpeed,
+                    conveyorSpeed: this.components.conveyorSystem.speed,
                     status: conveyorStatus // Use the status directly from the backend
                 });
             }
@@ -2090,14 +2087,14 @@ class ThreeJSVisualizer {
         this.factoryScene = null;
         this.mixerModels = [];
         this.factoryEnvironment = null;
-        this.waterTank = null;
+        this.components.waterTank.object3D = null;
         this.cookieLines = [];
         this.selectedMixer = null;
         this.statusIndicator = null;
-        this.freezerTunnel = null;
-        this.plasticLiner = null;
-        this.cookieFormer = null;
-        this.boxSealer = null;
+        this.components.freezerTunnel.object3D = null;
+        this.components.plasticLiner.object3D = null;
+        this.components.cookieFormer.object3D = null;
+        this.components.boxSealer.object3D = null;
         this.conveyors = {};
 
         if (!keepContainer) {
@@ -2127,9 +2124,9 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.FreezerTunnel) {
                     const freezerData = twinState.features.FreezerTunnel.properties;
                     this.updateTagContent('FreezerTunnel', {
-                        freezerTemperature: parseFloat(freezerData.Temperature || this.modelState.freezerTemperature),
-                        conveyorSpeed: this.modelState.conveyorSpeed,
-                        status: freezerData.Status || 'RUNNING'  // Changed from State to Status
+                        freezerTemperature: parseFloat(freezerData.Temperature || this.components.freezerTunnel.temperature),
+                        freezerSpeed: parseFloat(freezerData.Speed || this.components.freezerTunnel.speed),
+                        status: freezerData.Status
                     });
                 }
                 break;
@@ -2138,8 +2135,8 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.PlasticLiner) {
                     const linerData = twinState.features.PlasticLiner.properties;
                     this.updateTagContent('PlasticLiner', {
-                        linerRPM: parseFloat(linerData.RPM || this.modelState.linerRPM),
-                        status: linerData.Status || 'NORMAL'
+                        linerRPM: parseFloat(linerData.RPM || this.components.plasticLiner.rpm),
+                        status: linerData.Status
                     });
                 }
                 break;
@@ -2148,9 +2145,9 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.CookieFormer) {
                     const formerData = twinState.features.CookieFormer.properties;
                     this.updateTagContent('CookieFormer', {
-                        cookieFormerRate: parseFloat(formerData.Rate || this.modelState.cookieFormerRate),
-                        goodParts: parseFloat(formerData.GoodParts || this.modelState.goodParts),
-                        status: formerData.Status || 'OPERATIONAL'
+                        cookieFormerRate: parseFloat(formerData.Rate || this.components.cookieFormer.rate),
+                        goodParts: parseFloat(formerData.GoodParts || this.components.cookieFormer.goodParts),
+                        status: formerData.Status
                     });
                 }
                 break;
@@ -2159,8 +2156,8 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.BoxSealer) {
                     const sealerData = twinState.features.BoxSealer.properties;
                     this.updateTagContent('BoxSealer', {
-                        conveyorSpeed: parseFloat(sealerData.Speed || this.modelState.boxSealerSpeed || this.modelState.conveyorSpeed),
-                        status: sealerData.Status || 'OPERATIONAL'
+                        conveyorSpeed: parseFloat(sealerData.Speed || this.components.boxSealer.speed || this.components.conveyorSystem.speed),
+                        status: sealerData.Status
                     });
                 }
                 break;
@@ -2169,8 +2166,8 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.Conveyor) {
                     const conveyorData = twinState.features.Conveyor.properties;
                     this.updateTagContent('ConveyorSystem', {
-                        conveyorSpeed: parseFloat(conveyorData.Speed || this.modelState.conveyorSpeed),
-                        status: conveyorData.Status || 'RUNNING'
+                        conveyorSpeed: parseFloat(conveyorData.Speed || this.components.conveyorSystem.speed),
+                        status: conveyorData.Status
                     });
                 }
                 break;
@@ -2179,9 +2176,9 @@ class ThreeJSVisualizer {
                 if (twinState.features && twinState.features.WaterTank) {
                     const tankData = twinState.features.WaterTank.properties;
                     this.updateTagContent('WaterTank', {
-                        waterFlowRate: parseFloat(tankData.flowRate1 || this.modelState.waterFlowRate),
-                        tankVolume: parseFloat(tankData.tankVolume1 || this.modelState.tankVolume),
-                        status: tankData.Status || this.modelState.waterTankStatus || 'NORMAL'
+                        waterFlowRate: parseFloat(tankData.flowRate1 || this.components.waterTank.flowRate),
+                        tankVolume: parseFloat(tankData.tankVolume1 || this.components.waterTank.tankVolume),
+                        status: tankData.Status
                     });
                 }
                 break;

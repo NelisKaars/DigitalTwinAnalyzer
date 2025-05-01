@@ -38,7 +38,7 @@ urls:
 
 # Required software
 requirements:
-  - "Docker and Docker Compose"
+  - "Docker and Docker Compose (or Podman)"
   - "Python 3.6+"
   - "Modern web browser (Chrome or Firefox recommended)"
 

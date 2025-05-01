@@ -8,6 +8,8 @@ const Simulation = {
         isRunning: false,              // Whether simulation is currently running
         isPaused: false,               // Whether simulation is paused
         startTime: 0,                  // When simulation started
+        pauseStartTime: 0,             // When pause started
+        totalPauseTime: 0,             // Total time spent in pause
         elapsedTime: 0,                // Total elapsed time
         duration: 90,                  // Total duration in seconds
         cameraPathDuration: 95,        // Time to complete full camera path in seconds
@@ -142,14 +144,56 @@ const Simulation = {
             amplitude: 30,
             period: 45
         },
-        alarmSequence: [
-            // Sequence of alarms to trigger during simulation
-            { time: 10, mixer: 2, status: 'ACTIVE' },
-            { time: 15, mixer: 2, status: 'ACKNOWLEDGED' },
-            { time: 20, mixer: 2, status: 'NORMAL' },
-            { time: 25, mixer: 4, status: 'ACTIVE' },
-            { time: 35, mixer: 1, status: 'ACTIVE' },
-            { time: 40, mixer: 1, status: 'ACKNOWLEDGED' }
+        // Scheduled events based on the timesheet
+        scheduledEvents: [
+            // 0:15 -> Box sealer -> Speed update
+            { time: 15, component: 'BoxSealer', property: 'Speed', value: 1.5, duration: 2 },
+            
+            // 0:18 -> Plastic Liner -> RPM increase -> Alarm status: ACTIVE
+            { time: 18, component: 'PlasticLiner', property: 'RPM', value: 90, duration: 2 },
+            { time: 20, component: 'PlasticLiner', property: 'Status', value: 'ACTIVE', duration: 0 },
+            
+            // 0:23 -> Conveyor system -> Speed increase: (slow to high) -> Alarm: Acknowledged  
+            { time: 24, component: 'Conveyor', property: 'Speed', value: 1.8, duration: 2 },
+            { time: 26, component: 'Conveyor', property: 'Status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 0:35 -> Freezer tunnel -> Temperature: increase (above 0) -> Alarm: ACTIVE
+            { time: 35, component: 'FreezerTunnel', property: 'Temperature', value: 5, duration: 2 },
+            { time: 36, component: 'FreezerTunnel', property: 'Status', value: 'ACTIVE', duration: 0 },
+            
+            // 0:39 -> Water tank -> Flow rate: increase
+            { time: 39, component: 'WaterTank', property: 'flowRate1', value: 80, duration: 2 },
+            
+            // 0:40 -> Cookie former -> Rate: increase -> Good parts: small decrease
+            { time: 40, component: 'CookieFormer', property: 'Rate', value: 180, duration: 1 },
+            { time: 40, component: 'CookieFormer', property: 'GoodParts', value: 94.5, duration: 1 },
+            
+            // 0:57 -> Mixer 0 -> Random rpm (between 0-120) and temperature change (above 0)
+            { time: 57, component: 'Mixer_0', property: 'RPM', value: 115, duration: 1 },
+            { time: 57, component: 'Mixer_0', property: 'Temperature', value: 140, duration: 1 },
+            
+            // 1:00 -> Mixer_1 -> Random rpm and temperature change -> Alarm status: Acknowledged
+            { time: 60, component: 'Mixer_1', property: 'RPM', value: 90, duration: 1 },
+            { time: 60, component: 'Mixer_1', property: 'Temperature', value: 120, duration: 1 },
+            { time: 61, component: 'Mixer_1_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:00 -> Mixer_2 -> Random rpm and temperature change
+            { time: 60, component: 'Mixer_2', property: 'RPM', value: 75, duration: 1 },
+            { time: 60, component: 'Mixer_2', property: 'Temperature', value: 95, duration: 1 },
+            
+            // 1:04 -> Mixer_3 -> RPM decrease -> Status: acknowledged
+            { time: 64, component: 'Mixer_3', property: 'RPM', value: 15, duration: 1 },
+            { time: 65, component: 'Mixer_3_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:09 -> Mixer_4 -> High RPM increase and high temperature increase -> Status alarm: Active
+            { time: 69, component: 'Mixer_4', property: 'RPM', value: 115, duration: 1 },
+            { time: 69, component: 'Mixer_4', property: 'Temperature', value: 160, duration: 1 },
+            { time: 70, component: 'Mixer_4_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:16 -> Mixer_5 -> RPM to 0 and Temperature to 19 -> Status alarm: active
+            { time: 72, component: 'Mixer_5', property: 'RPM', value: 0, duration: 1 },
+            { time: 72, component: 'Mixer_5', property: 'Temperature', value: 19, duration: 1 },
+            { time: 73, component: 'Mixer_5_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 }
         ]
     },
     
@@ -184,11 +228,16 @@ const Simulation = {
         this.config.isRunning = false;
         this.config.isPaused = false;
         this.config.startTime = 0;
+        this.config.pauseStartTime = 0;
+        this.config.totalPauseTime = 0;
         this.config.elapsedTime = 0;
         this.config.waypointIndex = 0;
         this.config.waypointProgress = 0;
         this.config.lastDataUpdate = 0;
         this.config.cameraControlsEnabled = true;
+        
+        // Clear pending events array for clean state
+        this._pendingEvents = [];
     },
     
     // Start the simulation
@@ -198,6 +247,9 @@ const Simulation = {
         this.config.isRunning = true;
         this.config.startTime = performance.now();
         this.config.activeInstance = activeInstance;
+        
+        // Use a much shorter data update interval for more precise control of scheduled events
+        this.config.dataUpdateInterval = 100; // Check every 100ms instead of 2000ms
         
         // Disable camera controls when starting simulation
         if (activeInstance && typeof activeInstance.setCameraControlsEnabled === 'function') {
@@ -213,6 +265,11 @@ const Simulation = {
         // Pause normal polling during simulation to avoid conflicts
         DittoAPI.pausePolling();
         
+        // Force an immediate initial data update - don't wait for the first interval
+        this._updateDigitalTwinData();
+        this.config.lastDataUpdate = performance.now();
+        console.log('Initial data update triggered');
+        
         // Start animation loop
         requestAnimationFrame(this._update.bind(this));
         
@@ -224,6 +281,7 @@ const Simulation = {
         if (!this.config.isRunning || this.config.isPaused) return;
         
         this.config.isPaused = true;
+        this.config.pauseStartTime = performance.now();
         console.log('Simulation paused');
     },
     
@@ -231,9 +289,13 @@ const Simulation = {
     resume() {
         if (!this.config.isRunning || !this.config.isPaused) return;
         
+        // Calculate how long we were paused and add to total pause time
+        const pauseDuration = performance.now() - this.config.pauseStartTime;
+        this.config.totalPauseTime += pauseDuration;
+        
         this.config.isPaused = false;
         requestAnimationFrame(this._update.bind(this));
-        console.log('Simulation resumed');
+        console.log('Simulation resumed after', Math.round(pauseDuration) / 1000, 'seconds pause');
     },
     
     // Stop the simulation
@@ -251,6 +313,9 @@ const Simulation = {
         // Resume normal polling
         DittoAPI.resumePolling();
         
+        // Reset all twin values to their defaults
+        this._resetTwinToDefaultValues();
+        
         // Finalize metrics
         if (MetricsCollector.stopSimulation) {
             MetricsCollector.stopSimulation();
@@ -260,7 +325,7 @@ const Simulation = {
             this.callbacks.onComplete();
         }
         
-        console.log('Simulation stopped, camera controls restored');
+        console.log('Simulation stopped, camera controls restored, twin values reset to defaults');
     },
     
     // Main update loop
@@ -271,9 +336,9 @@ const Simulation = {
             return;
         }
         
-        // Calculate elapsed time
+        // Calculate elapsed time, accounting for pause time
         const now = performance.now();
-        this.config.elapsedTime = (now - this.config.startTime) / 1000; // convert to seconds
+        this.config.elapsedTime = (now - this.config.startTime - this.config.totalPauseTime) / 1000; // convert to seconds
         
         // Check if simulation is complete
         if (this.config.elapsedTime >= this.config.duration) {
@@ -340,53 +405,156 @@ const Simulation = {
         ];
     },
     
+    // Helper to interpolate a value over time for smooth transitions
+    _interpolateValue(startValue, targetValue, startTime, duration, currentTime) {
+        // If duration is 0 or very short, return target value immediately
+        if (duration <= 0.1) return targetValue;
+        
+        // Calculate progress (0 to 1)
+        const progress = Math.min(1, Math.max(0, (currentTime - startTime) / duration));
+        
+        // Linear interpolation
+        return startValue + ((targetValue - startValue) * progress);
+    },
+    
+    // Get current property value
+    _getCurrentPropertyValue(component, property) {
+        // Try to find a pending event for this component/property
+        const pendingEvent = this._pendingEvents.find(e => 
+            e.component === component && e.property === property);
+            
+        if (pendingEvent) {
+            return pendingEvent.currentValue;
+        }
+        
+        // Default values for common properties
+        switch(property) {
+            case 'RPM':
+                return component.startsWith('Mixer') ? 60 : 45;
+            case 'Temperature':
+                return component.startsWith('Mixer') ? 100 : 
+                      (component === 'FreezerTunnel' ? -15 : 20);
+            case 'Speed':
+                return 0.8;
+            case 'flowRate1':
+                return 40;
+            case 'tankVolume1':
+                return 75;
+            case 'Rate':
+                return 120;
+            case 'GoodParts':
+                return 98.5;
+            default:
+                return 0;
+        }
+    },
+    
+    // Track pending property changes for smooth transitions
+    _pendingEvents: [],
+    
     // Update digital twin data based on elapsed time
     _updateDigitalTwinData() {
         const time = this.config.elapsedTime;
         
-        // Update temperatures for all mixers
-        for (let i = 0; i < 6; i++) {
-            const pattern = this.updatePatterns.temperature;
-            const phaseOffset = i * (pattern.mixerOffset / pattern.period) * Math.PI * 2;
-            const value = pattern.base + pattern.amplitude * 
-                Math.sin((time / pattern.period) * Math.PI * 2 + phaseOffset);
-            
-            DittoAPI.updateProperty(`Mixer_${i}`, 'Temperature', Math.round(value));
-        }
+        console.log(`Updating data at time: ${time.toFixed(2)}s, checking ${this.updatePatterns.scheduledEvents.length} scheduled events`);
         
-        // Update RPMs for all mixers
-        for (let i = 0; i < 6; i++) {
-            const pattern = this.updatePatterns.rpm;
-            const phaseOffset = i * (pattern.mixerOffset / pattern.period) * Math.PI * 2;
-            const value = pattern.base + pattern.amplitude * 
-                Math.sin((time / pattern.period) * Math.PI * 2 + phaseOffset);
-            
-            DittoAPI.updateProperty(`Mixer_${i}`, 'RPM', Math.round(value));
-        }
+        // Track if any updates were made
+        let updatesPerformed = false;
         
-        // Update water flow rate
-        const flowPattern = this.updatePatterns.waterFlow;
-        const flowValue = flowPattern.base + flowPattern.amplitude * 
-            Math.sin((time / flowPattern.period) * Math.PI * 2);
-        DittoAPI.updateProperty('WaterTank', 'flowRate1', Math.round(flowValue));
-        
-        // Update water tank volume
-        const volumePattern = this.updatePatterns.waterVolume;
-        const volumeValue = volumePattern.base + volumePattern.amplitude * 
-            Math.sin((time / volumePattern.period) * Math.PI * 2);
-        DittoAPI.updateProperty('WaterTank', 'tankVolume1', Math.round(volumeValue));
-        
-        // Check for alarm events
-        this.updatePatterns.alarmSequence.forEach(alarm => {
-            if (time >= alarm.time && time < alarm.time + 1) {
-                // Trigger the alarm within a 1-second window of its scheduled time
-                DittoAPI.updateProperty(`Mixer_${alarm.mixer}_AlarmComponent`, 'alarm_status', alarm.status);
+        // Process scheduled events
+        this.updatePatterns.scheduledEvents.forEach(event => {
+            // Check if this event should be triggered (considering a small window to ensure it's not missed)
+            if (time >= event.time && time < event.time + 0.1) {
+                console.log(`Triggering scheduled event at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
+                updatesPerformed = true;
+                
+                if (event.duration > 0) {
+                    // For events with duration, add to pending events for smooth transition
+                    const startValue = this._getCurrentPropertyValue(event.component, event.property);
+                    this._pendingEvents.push({
+                        component: event.component,
+                        property: event.property,
+                        startValue: startValue,
+                        targetValue: event.value,
+                        startTime: time,
+                        duration: event.duration,
+                        currentValue: startValue
+                    });
+                    console.log(`Added to pending events: ${event.component}.${event.property}: ${startValue} -> ${event.value} over ${event.duration}s`);
+                } else {
+                    // Immediate change for events without duration (like status changes)
+                    DittoAPI.updateProperty(event.component, event.property, event.value);
+                }
             }
         });
+        
+        // Process pending events (for smooth transitions)
+        if (this._pendingEvents.length > 0) {
+            console.log(`Processing ${this._pendingEvents.length} pending events at time ${time.toFixed(2)}s`);
+            updatesPerformed = true;
+        }
+        
+        for (let i = this._pendingEvents.length - 1; i >= 0; i--) {
+            const event = this._pendingEvents[i];
+            
+            // Calculate interpolated value
+            event.currentValue = this._interpolateValue(
+                event.startValue,
+                event.targetValue,
+                event.startTime,
+                event.duration,
+                time
+            );
+            
+            console.log(`Updating ${event.component}.${event.property} = ${event.currentValue} (progress: ${Math.min(1, Math.max(0, (time - event.startTime) / event.duration)).toFixed(2)})`);
+            
+            // Update the property with the interpolated value
+            DittoAPI.updateProperty(event.component, event.property, 
+                typeof event.currentValue === 'number' ? Math.round(event.currentValue) : event.currentValue);
+            
+            // Remove completed events
+            if (time >= event.startTime + event.duration) {
+                console.log(`Completed event: ${event.component}.${event.property} reached final value ${event.targetValue}`);
+                this._pendingEvents.splice(i, 1);
+            }
+        }
         
         // Call data update callback
         if (this.callbacks.onDataUpdate) {
             this.callbacks.onDataUpdate();
+        }
+        
+        // Important: Update the visualization with the latest twin state if updates were performed
+        if (updatesPerformed || this._pendingEvents.length > 0) {
+            this._updateVisualizationFromLatestState();
+        }
+    },
+    
+    // Fetch latest twin state and update the visualization
+    async _updateVisualizationFromLatestState() {
+        if (!this.config.activeInstance || !this.config.activeInstance.updateFromTwin) {
+            console.log("No active instance or updateFromTwin method not available");
+            return;
+        }
+        
+        try {
+            // Fetch the latest state directly
+            const currentState = await DittoAPI.getTwinState();
+            if (currentState) {
+                console.log("Updating visualization from latest twin state");
+                
+                // Update the visualization directly - this will update the tags
+                this.config.activeInstance.updateFromTwin(currentState);
+                
+                // Also update dashboard UI if the function is available globally
+                if (typeof updateDashboardUI === 'function') {
+                    updateDashboardUI(currentState);
+                } else if (window.dashboardState && typeof window.dashboardState.updateDashboardUI === 'function') {
+                    window.dashboardState.updateDashboardUI(currentState);
+                }
+            }
+        } catch (error) {
+            console.error("Error updating visualization from latest state:", error);
         }
     },
     
@@ -409,6 +577,74 @@ const Simulation = {
             progress: this.config.elapsedTime / this.config.duration,
             duration: this.config.duration
         };
+    },
+    
+    // Reset all twin values to their defaults
+    _resetTwinToDefaultValues() {
+        console.log("Resetting all twin values to their original state...");
+        
+        // Define default values for all components
+        const defaultValues = {
+            // Mixers - all to default values
+            'Mixer_0': { 'Temperature': 100, 'RPM': 60 },
+            'Mixer_1': { 'Temperature': 100, 'RPM': 60 },
+            'Mixer_2': { 'Temperature': 100, 'RPM': 60 },
+            'Mixer_3': { 'Temperature': 100, 'RPM': 60 },
+            'Mixer_4': { 'Temperature': 100, 'RPM': 60 },
+            'Mixer_5': { 'Temperature': 100, 'RPM': 60 },
+            
+            // Mixer Alarm components - all to NORMAL
+            'Mixer_0_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            'Mixer_1_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            'Mixer_2_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            'Mixer_3_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            'Mixer_4_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            'Mixer_5_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            
+            // Water Tank
+            'WaterTank': { 'flowRate1': 35, 'tankVolume1': 75, 'Status': 'NORMAL' },
+            
+            // Freezer Tunnel
+            'FreezerTunnel': { 'Temperature': -15, 'Status': 'NORMAL' },
+            
+            // Plastic Liner
+            'PlasticLiner': { 'RPM': 45, 'Status': 'NORMAL' },
+            
+            // Cookie Former
+            'CookieFormer': { 'Rate': 120, 'GoodParts': 98.5, 'Status': 'NORMAL' },
+            
+            // Box Sealer
+            'BoxSealer': { 'Speed': 0.8, 'Status': 'NORMAL' },
+            
+            // Conveyor
+            'Conveyor': { 'Speed': 0.8, 'Status': 'NORMAL' }
+        };
+        
+        // Updates for all components and their properties
+        const updatePromises = [];
+        
+        // Reset each component to its default values
+        for (const component in defaultValues) {
+            for (const property in defaultValues[component]) {
+                const value = defaultValues[component][property];
+                updatePromises.push(
+                    DittoAPI.updateProperty(component, property, value)
+                        .then(() => console.log(`Reset ${component}.${property} = ${value}`))
+                        .catch(err => console.error(`Error resetting ${component}.${property}: ${err}`))
+                );
+            }
+        }
+        
+        // Wait for all updates to complete, then update the visualization
+        Promise.all(updatePromises)
+            .then(() => {
+                console.log("All twin values have been reset to defaults");
+                // Update the visualization with the reset values
+                this._updateVisualizationFromLatestState();
+            })
+            .catch(err => {
+                console.error("Error during reset operation:", err);
+            });
     }
 };
 

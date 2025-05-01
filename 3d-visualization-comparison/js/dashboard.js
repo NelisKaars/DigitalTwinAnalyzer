@@ -79,267 +79,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Control sliders for temperature with auto-update
-        const tempControl = document.getElementById('temp-control');
-        tempControl.addEventListener('input', (e) => {
-            const value = e.target.value;
-            document.getElementById('temp-value').textContent = `${value}°C`;
-            
-            // Set the user interaction flag
-            startUserInteraction();
-            
-            // Debounce the update
-            debounceControlUpdate(() => {
-                updateFactoryMixerTemperature(value);
-            });
-        });
-        
-        // When user stops interacting with the temperature slider
-        tempControl.addEventListener('change', () => {
-            // Update immediately at the end of the slider movement
-            updateFactoryMixerTemperature(tempControl.value);
-            endUserInteraction();
-        });
+        setupSliderControl('temp-control', 'temp-value', '°C', 
+            (value) => updateFactoryMixerTemperature(value));
         
         // Control sliders for RPM with auto-update
-        const rpmControl = document.getElementById('rpm-control');
-        rpmControl.addEventListener('input', (e) => {
-            const value = e.target.value;
-            document.getElementById('rpm-value').textContent = value;
-            
-            // Set the user interaction flag
-            startUserInteraction();
-            
-            // Debounce the update
-            debounceControlUpdate(() => {
-                updateFactoryMixerRPM(value);
-            });
-        });
-        
-        // When user stops interacting with the RPM slider
-        rpmControl.addEventListener('change', () => {
-            // Update immediately at the end of the slider movement
-            updateFactoryMixerRPM(rpmControl.value);
-            endUserInteraction();
-        });
+        setupSliderControl('rpm-control', 'rpm-value', '', 
+            (value) => updateFactoryMixerRPM(value));
         
         // Alarm status dropdown with auto-update
-        const alarmControl = document.getElementById('alarm-status');
-        alarmControl.addEventListener('change', (e) => {
+        document.getElementById('alarm-status').addEventListener('change', (e) => {
             updateFactoryAlarmStatus(e.target.value);
         });
         
         // Water flow control for factory
-        const waterFlowControl = document.getElementById('water-flow-control');
-        if (waterFlowControl) {
-            waterFlowControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('water-flow-value').textContent = value;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(value));
-                });
-            });
-            
-            waterFlowControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(waterFlowControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('water-flow-control', 'water-flow-value', '', 
+            (value) => DittoAPI.updateProperty('WaterTank', 'flowRate1', parseInt(value)));
         
         // Water tank volume control for factory
-        const waterVolumeControl = document.getElementById('water-volume-control');
-        if (waterVolumeControl) {
-            waterVolumeControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('water-volume-value').textContent = `${value}%`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('WaterTank', 'tankVolume1', parseInt(value));
-                });
-            });
-            
-            waterVolumeControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('WaterTank', 'tankVolume1', parseInt(waterVolumeControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('water-volume-control', 'water-volume-value', '%', 
+            (value) => DittoAPI.updateProperty('WaterTank', 'tankVolume1', parseInt(value)));
         
         // Water tank status control
-        const waterTankStatusControl = document.getElementById('water-tank-status');
-        if (waterTankStatusControl) {
-            waterTankStatusControl.addEventListener('change', (e) => {
-                updateWaterTankStatus(e.target.value);
-            });
-        }
+        setupStatusControl('water-tank-status', 'WaterTank');
         
         // FREEZER TUNNEL CONTROLS
-        // Freezer temperature control
-        const freezerTempControl = document.getElementById('freezer-temp-control');
-        if (freezerTempControl) {
-            freezerTempControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('freezer-temp-value').textContent = `${value}°C`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('FreezerTunnel', 'Temperature', parseInt(value));
-                });
-            });
-            
-            freezerTempControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('FreezerTunnel', 'Temperature', parseInt(freezerTempControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('freezer-temp-control', 'freezer-temp-value', '°C', 
+            (value) => DittoAPI.updateProperty('FreezerTunnel', 'Temperature', parseInt(value)));
         
         // Freezer status control
-        const freezerStatusControl = document.getElementById('freezer-status');
-        if (freezerStatusControl) {
-            freezerStatusControl.addEventListener('change', (e) => {
-                updateFreezerStatus(e.target.value);
-            });
-        }
+        setupStatusControl('freezer-status', 'FreezerTunnel');
         
         // PLASTIC LINER CONTROLS
-        // Plastic liner RPM control
-        const linerRpmControl = document.getElementById('liner-rpm-control');
-        if (linerRpmControl) {
-            linerRpmControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('liner-rpm-value').textContent = value;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('PlasticLiner', 'RPM', parseInt(value));
-                });
-            });
-            
-            linerRpmControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('PlasticLiner', 'RPM', parseInt(linerRpmControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('liner-rpm-control', 'liner-rpm-value', '', 
+            (value) => DittoAPI.updateProperty('PlasticLiner', 'RPM', parseInt(value)));
         
         // Plastic liner status control
-        const linerStatusControl = document.getElementById('liner-status');
-        if (linerStatusControl) {
-            linerStatusControl.addEventListener('change', (e) => {
-                updateLinerStatus(e.target.value);
-            });
-        }
+        setupStatusControl('liner-status', 'PlasticLiner');
         
         // COOKIE FORMER CONTROLS
-        // Cookie former production rate control
-        const cookieRateControl = document.getElementById('cookie-rate-control');
-        if (cookieRateControl) {
-            cookieRateControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('cookie-rate-value').textContent = `${value}/min`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('CookieFormer', 'Rate', parseInt(value));
-                });
-            });
-            
-            cookieRateControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('CookieFormer', 'Rate', parseInt(cookieRateControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('cookie-rate-control', 'cookie-rate-value', '/min', 
+            (value) => DittoAPI.updateProperty('CookieFormer', 'Rate', parseInt(value)));
         
         // Cookie quality control
-        const cookieQualityControl = document.getElementById('cookie-quality-control');
-        if (cookieQualityControl) {
-            cookieQualityControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('cookie-quality-value').textContent = `${value}%`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('CookieFormer', 'GoodParts', parseFloat(value));
-                });
-            });
-            
-            cookieQualityControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('CookieFormer', 'GoodParts', parseFloat(cookieQualityControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('cookie-quality-control', 'cookie-quality-value', '%', 
+            (value) => DittoAPI.updateProperty('CookieFormer', 'GoodParts', parseFloat(value)));
         
         // Cookie former status control
-        const cookieFormerStatusControl = document.getElementById('cookie-former-status');
-        if (cookieFormerStatusControl) {
-            cookieFormerStatusControl.addEventListener('change', (e) => {
-                updateCookieFormerStatus(e.target.value);
-            });
-        }
+        setupStatusControl('cookie-former-status', 'CookieFormer');
         
         // BOX SEALER CONTROLS
-        // Box sealer speed control
-        const boxSealerSpeedControl = document.getElementById('box-sealer-speed');
-        if (boxSealerSpeedControl) {
-            boxSealerSpeedControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('box-sealer-speed-value').textContent = `${value} m/s`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('BoxSealer', 'Speed', parseFloat(value));
-                });
-            });
-            
-            boxSealerSpeedControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('BoxSealer', 'Speed', parseFloat(boxSealerSpeedControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('box-sealer-speed', 'box-sealer-speed-value', ' m/s', 
+            (value) => DittoAPI.updateProperty('BoxSealer', 'Speed', parseFloat(value)));
         
         // Box sealer status control
-        const boxSealerStatusControl = document.getElementById('box-sealer-status');
-        if (boxSealerStatusControl) {
-            boxSealerStatusControl.addEventListener('change', (e) => {
-                updateBoxSealerStatus(e.target.value);
-            });
-        }
+        setupStatusControl('box-sealer-status', 'BoxSealer');
         
         // CONVEYOR SYSTEM CONTROLS
-        // Conveyor speed control
-        const conveyorSpeedControl = document.getElementById('conveyor-speed-control');
-        if (conveyorSpeedControl) {
-            conveyorSpeedControl.addEventListener('input', (e) => {
-                const value = e.target.value;
-                document.getElementById('conveyor-speed-value').textContent = `${value} m/s`;
-                
-                startUserInteraction();
-                
-                debounceControlUpdate(() => {
-                    DittoAPI.updateProperty('Conveyor', 'Speed', parseFloat(value));
-                });
-            });
-            
-            conveyorSpeedControl.addEventListener('change', () => {
-                DittoAPI.updateProperty('Conveyor', 'Speed', parseFloat(conveyorSpeedControl.value));
-                endUserInteraction();
-            });
-        }
+        setupSliderControl('conveyor-speed-control', 'conveyor-speed-value', ' m/s', 
+            (value) => DittoAPI.updateProperty('Conveyor', 'Speed', parseFloat(value)));
         
         // Conveyor status control
-        const conveyorStatusControl = document.getElementById('conveyor-status');
-        if (conveyorStatusControl) {
-            conveyorStatusControl.addEventListener('change', (e) => {
-                updateConveyorStatus(e.target.value);
-            });
-        }
+        setupStatusControl('conveyor-status', 'Conveyor');
         
         // Toggle tag visibility
         const toggleTagsCheckbox = document.getElementById('toggle-tags');
@@ -396,6 +196,50 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('download-sim-metrics').addEventListener('click', () => {
             MetricsCollector.downloadSimulationCSV();
         });
+    }
+    
+    /**
+     * Sets up a slider control with its associated event listeners
+     * @param {string} controlId - ID of the slider input element
+     * @param {string} valueId - ID of the element to display the current value
+     * @param {string} suffix - Text suffix to add after the value (e.g., '°C', '%')
+     * @param {Function} updateFn - Function to call with the new value
+     */
+    function setupSliderControl(controlId, valueId, suffix, updateFn) {
+        const control = document.getElementById(controlId);
+        if (!control) return;
+        
+        // Handle continuously updating while sliding
+        control.addEventListener('input', (e) => {
+            const value = e.target.value;
+            document.getElementById(valueId).textContent = `${value}${suffix}`;
+            
+            // Set the user interaction flag
+            startUserInteraction();
+            
+            // Debounce the update
+            debounceControlUpdate(() => updateFn(value));
+        });
+        
+        // Handle when user stops sliding
+        control.addEventListener('change', () => {
+            updateFn(control.value);
+            endUserInteraction();
+        });
+    }
+    
+    /**
+     * Sets up a status control dropdown
+     * @param {string} controlId - ID of the status select element
+     * @param {string} componentName - Name of the component to update
+     */
+    function setupStatusControl(controlId, componentName) {
+        const control = document.getElementById(controlId);
+        if (control) {
+            control.addEventListener('change', (e) => {
+                DittoAPI.updateProperty(componentName, 'Status', e.target.value);
+            });
+        }
     }
     
     /**
@@ -496,60 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update only the selected mixer
             DittoAPI.updateProperty(`${selectedMixer}_AlarmComponent`, 'alarm_status', status);
         }
-    }
-    
-    /**
-     * Update status for water tank component
-     * @param {string} status - Water tank status
-     */
-    function updateWaterTankStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('WaterTank', 'Status', status);
-    }
-    
-    /**
-     * Update status for the freezer tunnel component
-     * @param {string} status - Freezer tunnel status
-     */
-    function updateFreezerStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('FreezerTunnel', 'Status', status);
-    }
-    
-    /**
-     * Update status for the plastic liner component
-     * @param {string} status - Plastic liner status
-     */
-    function updateLinerStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('PlasticLiner', 'Status', status);
-    }
-    
-    /**
-     * Update status for the cookie former component
-     * @param {string} status - Cookie former status
-     */
-    function updateCookieFormerStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('CookieFormer', 'Status', status);
-    }
-    
-    /**
-     * Update status for the box sealer component
-     * @param {string} status - Box sealer status
-     */
-    function updateBoxSealerStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('BoxSealer', 'Status', status);
-    }
-    
-    /**
-     * Update status for the conveyor system component
-     * @param {string} status - Conveyor system status
-     */
-    function updateConveyorStatus(status) {
-        // Remove condition to allow updates regardless of active component
-        DittoAPI.updateProperty('Conveyor', 'Status', status);
     }
     
     /**
@@ -762,9 +552,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Stop any existing polling
         DittoAPI.stopPolling();
         
-        // Ensure we're using the Factory thing
-        DittoAPI.setDigitalTwinModel('factory');
-        
         // Start polling and send updates to the framework
         DittoAPI.startPolling((state) => {
             // Only update UI from polling if user is not interacting with controls
@@ -780,6 +567,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
+     * Update a control element with a value from the twin state if the user is not interacting
+     * @param {object} twinState - Current twin state
+     * @param {string} feature - Feature name in the twin state
+     * @param {string} property - Property name in the feature
+     * @param {string} controlId - ID of the control element to update
+     * @param {string} valueId - ID of the element to display the value
+     * @param {string} suffix - Optional suffix for the displayed value
+     * @param {function} parseValue - Function to parse the value (e.g., parseFloat)
+     */
+    function updateControlFromTwin(twinState, feature, property, controlId, valueId, suffix = '', parseValue = parseFloat) {
+        if (twinState.features?.[feature]?.properties?.[property] !== undefined && !dashboardState.isUserInteracting) {
+            const value = parseValue(twinState.features[feature].properties[property]);
+            const control = document.getElementById(controlId);
+            const valueElement = document.getElementById(valueId);
+            
+            if (control && valueElement) {
+                control.value = value;
+                valueElement.textContent = `${value}${suffix}`;
+            }
+        }
+    }
+    
+    /**
+     * Update a status select control with a value from the twin state
+     * @param {object} twinState - Current twin state
+     * @param {string} feature - Feature name in the twin state
+     * @param {string} property - Property name in the feature
+     * @param {string} controlId - ID of the status select element
+     */
+    function updateStatusControlFromTwin(twinState, feature, property, controlId) {
+        if (twinState.features?.[feature]?.properties?.[property] !== undefined && !dashboardState.isUserInteracting) {
+            const status = twinState.features[feature].properties[property];
+            const statusControl = document.getElementById(controlId);
+            
+            if (statusControl) {
+                statusControl.value = status;
+            }
+        }
+    }
+    
+    /**
      * Update the dashboard UI based on digital twin state
      * @param {object} twinState - Current state of the digital twin
      */
@@ -792,172 +620,38 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedMixerPrefix = 'Mixer_0';
         }
         
-        // Update temperature slider
-        if (twinState.features?.[selectedMixerPrefix]?.properties?.Temperature !== undefined && !dashboardState.isUserInteracting) {
-            const temp = parseFloat(twinState.features[selectedMixerPrefix].properties.Temperature);
-            document.getElementById('temp-control').value = temp;
-            document.getElementById('temp-value').textContent = `${temp}°C`;
-        }
+        // Update mixer controls
+        updateControlFromTwin(twinState, selectedMixerPrefix, 'Temperature', 'temp-control', 'temp-value', '°C');
+        updateControlFromTwin(twinState, selectedMixerPrefix, 'RPM', 'rpm-control', 'rpm-value');
         
-        // Update RPM slider
-        if (twinState.features?.[selectedMixerPrefix]?.properties?.RPM !== undefined && !dashboardState.isUserInteracting) {
-            const rpm = parseFloat(twinState.features[selectedMixerPrefix].properties.RPM);
-            document.getElementById('rpm-control').value = rpm;
-            document.getElementById('rpm-value').textContent = rpm;
-        }
+        // Update mixer alarm status
+        updateStatusControlFromTwin(twinState, `${selectedMixerPrefix}_AlarmComponent`, 'alarm_status', 'alarm-status');
         
-        // Update alarm status dropdown
-        const alarmComponentName = `${selectedMixerPrefix}_AlarmComponent`;
-        if (twinState.features?.[alarmComponentName]?.properties?.alarm_status !== undefined && !dashboardState.isUserInteracting) {
-            const status = twinState.features[alarmComponentName].properties.alarm_status;
-            document.getElementById('alarm-status').value = status;
-        }
+        // Update water tank controls
+        updateControlFromTwin(twinState, 'WaterTank', 'flowRate1', 'water-flow-control', 'water-flow-value');
+        updateControlFromTwin(twinState, 'WaterTank', 'tankVolume1', 'water-volume-control', 'water-volume-value', '%');
+        updateStatusControlFromTwin(twinState, 'WaterTank', 'Status', 'water-tank-status');
         
-        // Update water flow rate
-        if (twinState.features?.WaterTank?.properties?.flowRate1 !== undefined && !dashboardState.isUserInteracting) {
-            const flowRate = parseFloat(twinState.features.WaterTank.properties.flowRate1);
-            const waterFlowControl = document.getElementById('water-flow-control');
-            const waterFlowValue = document.getElementById('water-flow-value');
-            
-            if (waterFlowControl && waterFlowValue) {
-                waterFlowControl.value = flowRate;
-                waterFlowValue.textContent = flowRate;
-            }
-        }
+        // Update freezer tunnel controls
+        updateControlFromTwin(twinState, 'FreezerTunnel', 'Temperature', 'freezer-temp-control', 'freezer-temp-value', '°C');
+        updateStatusControlFromTwin(twinState, 'FreezerTunnel', 'Status', 'freezer-status');
         
-        // Update water tank volume
-        if (twinState.features?.WaterTank?.properties?.tankVolume1 !== undefined && !dashboardState.isUserInteracting) {
-            const tankVolume = parseFloat(twinState.features.WaterTank.properties.tankVolume1);
-            const waterVolumeControl = document.getElementById('water-volume-control');
-            const waterVolumeValue = document.getElementById('water-volume-value');
-            
-            if (waterVolumeControl && waterVolumeValue) {
-                waterVolumeControl.value = tankVolume;
-                waterVolumeValue.textContent = `${tankVolume}%`;
-            }
-        }
+        // Update plastic liner controls
+        updateControlFromTwin(twinState, 'PlasticLiner', 'RPM', 'liner-rpm-control', 'liner-rpm-value');
+        updateStatusControlFromTwin(twinState, 'PlasticLiner', 'Status', 'liner-status');
         
-        // Update freezer tunnel temperature
-        if (twinState.features?.FreezerTunnel?.properties?.Temperature !== undefined && !dashboardState.isUserInteracting) {
-            const freezerTemp = parseFloat(twinState.features.FreezerTunnel.properties.Temperature);
-            const freezerTempControl = document.getElementById('freezer-temp-control');
-            const freezerTempValue = document.getElementById('freezer-temp-value');
-            
-            if (freezerTempControl && freezerTempValue) {
-                freezerTempControl.value = freezerTemp;
-                freezerTempValue.textContent = `${freezerTemp}°C`;
-            }
-        }
+        // Update cookie former controls
+        updateControlFromTwin(twinState, 'CookieFormer', 'Rate', 'cookie-rate-control', 'cookie-rate-value', '/min');
+        updateControlFromTwin(twinState, 'CookieFormer', 'GoodParts', 'cookie-quality-control', 'cookie-quality-value', '%');
+        updateStatusControlFromTwin(twinState, 'CookieFormer', 'Status', 'cookie-former-status');
         
-        // Update freezer tunnel status - changed from State to Status
-        if (twinState.features?.FreezerTunnel?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
-            const freezerStatus = twinState.features.FreezerTunnel.properties.Status;
-            const freezerStatusControl = document.getElementById('freezer-status');
-            
-            if (freezerStatusControl) {
-                freezerStatusControl.value = freezerStatus;
-            }
-        }
+        // Update box sealer controls
+        updateControlFromTwin(twinState, 'BoxSealer', 'Speed', 'box-sealer-speed', 'box-sealer-speed-value', ' m/s');
+        updateStatusControlFromTwin(twinState, 'BoxSealer', 'Status', 'box-sealer-status');
         
-        // Update plastic liner RPM
-        if (twinState.features?.PlasticLiner?.properties?.RPM !== undefined && !dashboardState.isUserInteracting) {
-            const linerRPM = parseFloat(twinState.features.PlasticLiner.properties.RPM);
-            const linerRpmControl = document.getElementById('liner-rpm-control');
-            const linerRpmValue = document.getElementById('liner-rpm-value');
-            
-            if (linerRpmControl && linerRpmValue) {
-                linerRpmControl.value = linerRPM;
-                linerRpmValue.textContent = linerRPM;
-            }
-        }
-        
-        // Update plastic liner status
-        if (twinState.features?.PlasticLiner?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
-            const linerStatus = twinState.features.PlasticLiner.properties.Status;
-            const linerStatusControl = document.getElementById('liner-status');
-            
-            if (linerStatusControl) {
-                linerStatusControl.value = linerStatus;
-            }
-        }
-        
-        // Update cookie former rate
-        if (twinState.features?.CookieFormer?.properties?.Rate !== undefined && !dashboardState.isUserInteracting) {
-            const cookieRate = parseFloat(twinState.features.CookieFormer.properties.Rate);
-            const cookieRateControl = document.getElementById('cookie-rate-control');
-            const cookieRateValue = document.getElementById('cookie-rate-value');
-            
-            if (cookieRateControl && cookieRateValue) {
-                cookieRateControl.value = cookieRate;
-                cookieRateValue.textContent = `${cookieRate}/min`;
-            }
-        }
-        
-        // Update cookie former good parts percentage
-        if (twinState.features?.CookieFormer?.properties?.GoodParts !== undefined && !dashboardState.isUserInteracting) {
-            const goodParts = parseFloat(twinState.features.CookieFormer.properties.GoodParts);
-            const cookieQualityControl = document.getElementById('cookie-quality-control');
-            const cookieQualityValue = document.getElementById('cookie-quality-value');
-            
-            if (cookieQualityControl && cookieQualityValue) {
-                cookieQualityControl.value = goodParts;
-                cookieQualityValue.textContent = `${goodParts}%`;
-            }
-        }
-        
-        // Update cookie former status
-        if (twinState.features?.CookieFormer?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
-            const formerStatus = twinState.features.CookieFormer.properties.Status;
-            const cookieFormerStatusControl = document.getElementById('cookie-former-status');
-            
-            if (cookieFormerStatusControl) {
-                cookieFormerStatusControl.value = formerStatus;
-            }
-        }
-        
-        // Update box sealer speed
-        if (twinState.features?.BoxSealer?.properties?.Speed !== undefined && !dashboardState.isUserInteracting) {
-            const boxSpeed = parseFloat(twinState.features.BoxSealer.properties.Speed);
-            const boxSealerSpeedControl = document.getElementById('box-sealer-speed');
-            const boxSealerSpeedValue = document.getElementById('box-sealer-speed-value');
-            
-            if (boxSealerSpeedControl && boxSealerSpeedValue) {
-                boxSealerSpeedControl.value = boxSpeed;
-                boxSealerSpeedValue.textContent = `${boxSpeed} m/s`;
-            }
-        }
-        
-        // Update box sealer status
-        if (twinState.features?.BoxSealer?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
-            const boxStatus = twinState.features.BoxSealer.properties.Status;
-            const boxSealerStatusControl = document.getElementById('box-sealer-status');
-            
-            if (boxSealerStatusControl) {
-                boxSealerStatusControl.value = boxStatus;
-            }
-        }
-        
-        // Update conveyor system speed
-        if (twinState.features?.Conveyor?.properties?.Speed !== undefined && !dashboardState.isUserInteracting) {
-            const conveyorSpeed = parseFloat(twinState.features.Conveyor.properties.Speed);
-            const conveyorSpeedControl = document.getElementById('conveyor-speed-control');
-            const conveyorSpeedValue = document.getElementById('conveyor-speed-value');
-            
-            if (conveyorSpeedControl && conveyorSpeedValue) {
-                conveyorSpeedControl.value = conveyorSpeed;
-                conveyorSpeedValue.textContent = `${conveyorSpeed} m/s`;
-            }
-        }
-        
-        // Update conveyor system status
-        if (twinState.features?.Conveyor?.properties?.Status !== undefined && !dashboardState.isUserInteracting) {
-            const conveyorStatus = twinState.features.Conveyor.properties.Status;
-            const conveyorStatusControl = document.getElementById('conveyor-status');
-            
-            if (conveyorStatusControl) {
-                conveyorStatusControl.value = conveyorStatus;
-            }
-        }
+        // Update conveyor system controls
+        updateControlFromTwin(twinState, 'Conveyor', 'Speed', 'conveyor-speed-control', 'conveyor-speed-value', ' m/s');
+        updateStatusControlFromTwin(twinState, 'Conveyor', 'Status', 'conveyor-status');
     }
     
     // --- SIMULATION FUNCTIONALITY ---
@@ -1103,6 +797,9 @@ document.addEventListener('DOMContentLoaded', () => {
             control.disabled = isRunning;
         });
     }
+    
+    // Export the dashboardState to window for potential external access
+    window.dashboardState = dashboardState;
     
     // Expose the simulation object to window for potential external access
     window.Simulation = Simulation;

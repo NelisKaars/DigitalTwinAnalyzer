@@ -8,7 +8,7 @@ const DittoAPI = {
     // Default settings
     settings: {
         baseUrl: 'http://localhost:8080',
-        thingId: 'org.eclipse.ditto:Mixer',
+        thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
         pollingInterval: 2000 // ms
@@ -127,21 +127,6 @@ const DittoAPI = {
         }
     },
     
-    // Change the digital twin model
-    setDigitalTwinModel(modelId) {
-        switch(modelId) {
-            case 'mixer':
-                this.settings.thingId = 'org.eclipse.ditto:Mixer';
-                break;
-            case 'factory':
-                this.settings.thingId = 'org.eclipse.ditto:Factory';
-                break;
-            default:
-                console.warn(`Unknown model ID: ${modelId}, using Mixer as default`);
-                this.settings.thingId = 'org.eclipse.ditto:Mixer';
-        }
-    },
-
     // Initialize the factory digital twin with default values if it doesn't exist
     async initializeFactoryTwin() {
         try {
@@ -215,42 +200,22 @@ const ModelLoader = {
     getModelPath(framework, modelId) {
         // Updated paths to use the local models directory
         const factoryPath = '../models/CookieFactory/';
-        const localPath = '../models/';
         
-        if (modelId === 'factory') {
-            // For factory, we need to load the full scene definition
-            return {
-                sceneDefinition: `${factoryPath}CookieFactory.json`,
-                models: {
-                    environment: `${factoryPath}CookieFactoryEnvironment.glb`,
-                    mixer: `${factoryPath}CookieFactoryMixer.glb`,
-                    line: `${factoryPath}CookieFactoryLine.glb`,
-                    waterTank: `${factoryPath}CookieFactoryWaterTank.glb`,
-                    freezerTunnel: `${factoryPath}CookieFactoryFreezer.glb`,
-                    plasticLiner: `${factoryPath}CookieFactoryLiner.glb`,
-                    cookieFormer: `${factoryPath}CookieFactoryFormer.glb`,
-                    boxSealer: `${factoryPath}CookieFactorySealer.glb`,
-                    conveyorSystem: `${factoryPath}CookieFactoryConveyor.glb`
-                }
-            };
-        } else {
-            // For single models
-            const modelMap = {
-                'mixer': {
-                    'threejs': `${localPath}CookieFactoryMixer.glb`,
-                    'babylonjs': `${localPath}CookieFactoryMixer.glb`,
-                    'unity': `${localPath}CookieFactoryMixer.fbx`
-                }
-            };
-            
-            if (modelMap[modelId] && modelMap[modelId][framework]) {
-                return modelMap[modelId][framework];
+        // Only return factory model paths
+        return {
+            sceneDefinition: `${factoryPath}CookieFactory.json`,
+            models: {
+                environment: `${factoryPath}CookieFactoryEnvironment.glb`,
+                mixer: `${factoryPath}CookieFactoryMixer.glb`,
+                line: `${factoryPath}CookieFactoryLine.glb`,
+                waterTank: `${factoryPath}CookieFactoryWaterTank.glb`,
+                freezerTunnel: `${factoryPath}CookieFactoryFreezer.glb`,
+                plasticLiner: `${factoryPath}CookieFactoryLiner.glb`,
+                cookieFormer: `${factoryPath}CookieFactoryFormer.glb`,
+                boxSealer: `${factoryPath}CookieFactorySealer.glb`,
+                conveyorSystem: `${factoryPath}CookieFactoryConveyor.glb`
             }
-            
-            // Default to Mixer model for Three.js if not found
-            console.warn(`Model path not found for ${framework}/${modelId}, using default`);
-            return `${localPath}CookieFactoryMixer.glb`;
-        }
+        };
     },
     
     // Load the scene definition JSON file
@@ -265,9 +230,7 @@ const ModelLoader = {
             console.error('Error loading scene definition:', error);
             return null;
         }
-    },
-    
-    // Future: Add more utility methods for handling model loading, animations, etc.
+    }
 };
 
 // Digital Twin properties helper - maps data to visual elements
@@ -548,9 +511,6 @@ const FactoryScene = {
 
 // Initialize the factory digital twin on script load
 document.addEventListener('DOMContentLoaded', () => {
-    // Set the model to factory
-    DittoAPI.setDigitalTwinModel('factory');
-    
     // Initialize the factory twin with all required features
     DittoAPI.initializeFactoryTwin()
         .then(() => {
