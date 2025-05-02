@@ -35,9 +35,9 @@ class ThreeJSVisualizer {
         this.selectedMixer = null;
         this.conveyors = {};
 
-        // Floating tags for real-time data
-        this.tags = {};
-        this.tagOpacity = 0.8;
+        // Tag system references
+        this.tagManager = null;        // Reference to the shared tag manager
+        this.tagObjects = {};          // For mapping tag IDs to 3D objects
         this.showTags = true;
 
         // Component state objects - properly structured by component
@@ -85,15 +85,6 @@ class ThreeJSVisualizer {
         this.temperatureLight = null;
         this.statusIndicator = null;
 
-        // Tag interaction system
-        this.hoveredTag = null;
-        this.focusedTag = null;
-        this.tagBaseOpacity = 0.6;  // All tags are at least this visible
-        this.tagFocusOpacity = 0.9; // Opacity when focused or hovered
-        this.tagBaseScale = 0.6;    // Base scale for tags
-        this.tagFocusScale = 1.0;   // Scale when focused or hovered
-        this.tagScaleTransition = 0.2; // Seconds for scale transition 
-
         // For textures (especially conveyor belts and plastic liner)
         this.textureOffsets = {};
         
@@ -135,6 +126,10 @@ class ThreeJSVisualizer {
         // Set zoom limits for factory view
         this.controls.minDistance = 5;   // Minimum zoom distance
         this.controls.maxDistance = 200; // Maximum zoom distance
+
+        // Initialize the tag manager
+        this.tagManager = new TagManager(this.container);
+        // Removed tag focus/unfocus callbacks
 
         // Lighting
         this.setupLighting();
@@ -510,116 +505,46 @@ class ThreeJSVisualizer {
      * Create floating tags for all components to display property values
      */
     createFloatingTags() {
-        // Create a container for all tags and position it relative to the visualization container
-        const tagContainerElement = document.createElement('div');
-        tagContainerElement.className = 'floating-tags-container';
-        tagContainerElement.style.position = 'absolute';
-        tagContainerElement.style.top = '0';
-        tagContainerElement.style.left = '0';
-        tagContainerElement.style.width = '100%';
-        tagContainerElement.style.height = '100%';
-        tagContainerElement.style.pointerEvents = 'none';
-        tagContainerElement.style.overflow = 'hidden'; // Prevent tags from showing outside container
-        tagContainerElement.style.zIndex = '10'; // Set z-index higher than scene but lower than other UI elements
-
-        this.container.style.position = 'relative'; // Ensure container has relative positioning
-        this.container.appendChild(tagContainerElement);
-        this.tagContainer = tagContainerElement;
-
         // Create tags for each mixer
         this.mixerModels.forEach((mixer, index) => {
             const tagId = mixer.name;
-            const tagGroup = new THREE.Group();
-
-            // Position above the mixer (higher than the status indicator)
-            tagGroup.position.set(0, 3.5, 0);
-
-            // Create text using HTML and CSS
-            const tagElement = document.createElement('div');
-            tagElement.className = 'floating-tag';
-            tagElement.id = `tag-${tagId}`;
-            tagElement.style.position = 'absolute';
-            tagElement.style.padding = '8px';
-            tagElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-            tagElement.style.color = 'white';
-            tagElement.style.borderRadius = '5px';
-            tagElement.style.fontSize = '12px';
-            tagElement.style.fontFamily = 'Arial, sans-serif';
-            tagElement.style.width = 'auto';
-            tagElement.style.textAlign = 'left';
-            tagElement.style.display = this.showTags ? 'block' : 'none';
-            tagElement.style.transform = `translate(-50%, -50%) scale(${this.tagBaseScale})`;
-            tagElement.style.opacity = this.tagBaseOpacity.toString();
-            tagElement.style.transition = `transform ${this.tagScaleTransition}s ease-out, opacity ${this.tagScaleTransition}s ease-out`;
-            tagElement.innerHTML = `
+            
+            // Create tag in the manager 
+            const content = `
                 <div><strong>${mixer.name}</strong></div>
                 <div>Temperature: ${this.components.mixers.temperature}°C</div>
                 <div>RPM: ${this.components.mixers.rpm}</div>
                 <div>Status: ${this.components.mixers.status}</div>
             `;
-
-            // Add mouse interaction
-            this.setupTagInteraction(tagElement, tagId);
-
-            this.tagContainer.appendChild(tagElement);
-
-            // Store references
-            this.tags[tagId] = {
-                element: tagElement,
-                object3D: tagGroup,
-                type: 'mixer',
-                index: mixer.index,
-                priority: (6 - index) // Higher priority for first mixers (reverse of index)
+            
+            this.tagManager.createTag(tagId, content, 'mixer');
+            
+            // Store reference to 3D object for positioning
+            this.tagObjects[tagId] = {
+                object3D: mixer.model,
+                offset: new THREE.Vector3(0, 3.5, 0)
             };
-
-            mixer.model.add(tagGroup);
         });
 
         // Create tag for water tank
         if (this.components.waterTank.object3D) {
             const tagId = 'WaterTank';
-            const tagGroup = new THREE.Group();
-
-            // Position above the water tank
-            tagGroup.position.set(0, 5, 0);
-
-            // Create text using HTML and CSS
-            const tagElement = document.createElement('div');
-            tagElement.className = 'floating-tag';
-            tagElement.id = `tag-${tagId}`;
-            tagElement.style.position = 'absolute';
-            tagElement.style.padding = '8px';
-            tagElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-            tagElement.style.color = 'white';
-            tagElement.style.borderRadius = '5px';
-            tagElement.style.fontSize = '12px';
-            tagElement.style.fontFamily = 'Arial, sans-serif';
-            tagElement.style.width = 'auto';
-            tagElement.style.textAlign = 'left';
-            tagElement.style.display = this.showTags ? 'block' : 'none';
-            tagElement.style.transform = `translate(-50%, -50%) scale(${this.tagBaseScale})`;
-            tagElement.style.opacity = this.tagBaseOpacity.toString();
-            tagElement.style.transition = `transform ${this.tagScaleTransition}s ease-out, opacity ${this.tagScaleTransition}s ease-out`;
-            tagElement.innerHTML = `
+            
+            // Create tag in the manager
+            const content = `
                 <div><strong>Water Tank</strong></div>
                 <div>Flow Rate: ${this.components.waterTank.flowRate}</div>
                 <div>Volume: ${this.components.waterTank.tankVolume}%</div>
                 <div>Status: ${this.components.waterTank.status}</div>
             `;
-
-            // Add mouse interaction
-            this.setupTagInteraction(tagElement, tagId);
-
-            this.tagContainer.appendChild(tagElement);
-
-            // Store references
-            this.tags[tagId] = {
-                element: tagElement,
-                object3D: tagGroup,
-                type: 'watertank'
+            
+            this.tagManager.createTag(tagId, content, 'watertank');
+            
+            // Store reference to 3D object for positioning
+            this.tagObjects[tagId] = {
+                object3D: this.components.waterTank.object3D,
+                offset: new THREE.Vector3(0, 5, 0)
             };
-
-            this.components.waterTank.object3D.add(tagGroup);
         }
 
         // Create tags for additional components from CookieFactoryV3
@@ -690,309 +615,71 @@ class ThreeJSVisualizer {
     }
 
     /**
-     * Setup mouse interaction for a tag element
-     * @param {HTMLElement} tagElement - The tag element
-     * @param {string} tagId - ID of the tag
-     */
-    setupTagInteraction(tagElement, tagId) {
-        // Make tag element receive pointer events
-        tagElement.style.pointerEvents = 'auto';
-        tagElement.style.cursor = 'pointer';
-
-        // Mouse enter - highlight tag
-        tagElement.addEventListener('mouseenter', () => {
-            this.hoveredTag = tagId;
-            this.updateTagVisualState(tagId, true);
-        });
-
-        // Mouse leave - remove highlight unless focused
-        tagElement.addEventListener('mouseleave', () => {
-            this.hoveredTag = null;
-            if (this.focusedTag !== tagId) {
-                this.updateTagVisualState(tagId, false);
-            }
-        });
-
-        // Click - focus on tag
-        tagElement.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent click from propagating to canvas
-
-            // If already focused, unfocus
-            if (this.focusedTag === tagId) {
-                this.focusedTag = null;
-                this.updateTagVisualState(tagId, this.hoveredTag === tagId);
-            } else {
-                // Unfocus previous focused tag
-                if (this.focusedTag && this.tags[this.focusedTag]) {
-                    this.updateTagVisualState(this.focusedTag, this.hoveredTag === this.focusedTag);
-                }
-
-                // Focus this tag
-                this.focusedTag = tagId;
-                this.updateTagVisualState(tagId, true);
-
-                // Potentially focus camera on this component
-                this.focusOnComponent(tagId);
-            }
-        });
-    }
-
-    /**
-     * Update the visual state of a tag based on hover/focus state
-     * @param {string} tagId - ID of the tag
-     * @param {boolean} highlight - Whether to highlight the tag
-     */
-    updateTagVisualState(tagId, highlight) {
-        const tag = this.tags[tagId];
-        if (!tag || !tag.element) return;
-
-        const element = tag.element;
-
-        if (highlight) {
-            // Highlight the tag - make it more visible and larger
-            element.style.opacity = this.tagFocusOpacity.toString();
-            element.style.transform = `translate(-50%, -50%) scale(${this.tagFocusScale})`;
-            element.style.zIndex = '100'; // Bring to front
-        } else {
-            // Return to normal state
-            element.style.opacity = this.tagBaseOpacity.toString();
-            element.style.transform = `translate(-50%, -50%) scale(${this.tagBaseScale})`;
-            element.style.zIndex = '10';
-        }
-    }
-
-    /**
-     * Focus the camera on a component when its tag is clicked
-     * @param {string} tagId - ID of the tag/component
-     */
-    focusOnComponent(tagId) {
-        // For mixers, use existing focusOnMixer method
-        if (tagId.startsWith('Mixer_')) {
-            this.focusOnMixer(tagId);
-            return;
-        }
-
-        // Unfocus previous tag if different
-        if (this.focusedTag && this.focusedTag !== tagId) {
-            this.updateTagVisualState(this.focusedTag, this.hoveredTag === this.focusedTag);
-        }
-
-        // Set this component as focused
-        this.focusedTag = tagId;
-        this.updateTagVisualState(tagId, true);
-
-        // For other components, find their position and focus on them
-        let targetObject = null;
-
-        switch (tagId) {
-            case 'WaterTank':
-                targetObject = this.components.waterTank.object3D;
-                // Update global state to show water tank parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'water-tank';
-                break;
-            case 'FreezerTunnel':
-                targetObject = this.components.freezerTunnel.object3D;
-                // Update global state to show freezer tunnel parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'freezer-tunnel';
-                break;
-            case 'PlasticLiner':
-                targetObject = this.components.plasticLiner.object3D;
-                // Update global state to show plastic liner parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'plastic-liner';
-                break;
-            case 'CookieFormer':
-                targetObject = this.components.cookieFormer.object3D;
-                // Update global state to show cookie former parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'cookie-former';
-                break;
-            case 'BoxSealer':
-                targetObject = this.components.boxSealer.object3D;
-                // Update global state to show box sealer parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'box-sealer';
-                break;
-            case 'ConveyorSystem':
-                targetObject = Object.values(this.conveyors)[0];
-                // Update global state to show conveyor system parameters
-                window.dashboardState = window.dashboardState || {};
-                window.dashboardState.activeComponent = 'conveyor-system';
-                break;
-        }
-
-        if (targetObject) {
-            // Get world position of the object
-            const pos = new THREE.Vector3();
-            targetObject.getWorldPosition(pos);
-
-            // Move camera to focus on this component
-            this.camera.position.set(pos.x + 5, pos.y + 5, pos.z + 10);
-            this.controls.target.set(pos.x, pos.y, pos.z);
-            this.controls.update();
-            
-            // Get the latest state for this component
-            DittoAPI.getTwinState().then(state => {
-                // Update the component visually based on the latest data
-                if (state.features && state.features[tagId]) {
-                    switch(tagId) {
-                        case 'FreezerTunnel':
-                            if (state.features.FreezerTunnel?.properties?.Temperature !== undefined) {
-                                const freezerTemp = parseFloat(state.features.FreezerTunnel.properties.Temperature);
-                                this.components.freezerTunnel.temperature = freezerTemp;
-                                
-                                // Apply visual changes directly to the freezer tunnel
-                                if (this.components.freezerTunnel.object3D && this.components.freezerTunnel.object3D.material) {
-                                    const intensity = Math.min(1.0, Math.max(0.0, (-freezerTemp + 10) / 30));
-                                    const color = new THREE.Color(0.2, 0.4, 0.8); // Blue-ish color for freezer
-                                    this.components.freezerTunnel.object3D.material.emissive = color;
-                                    this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
-                                }
-                            }
-                            break;
-                        case 'PlasticLiner':
-                            if (state.features.PlasticLiner?.properties?.RPM !== undefined) {
-                                const linerRPM = parseFloat(state.features.PlasticLiner.properties.RPM);
-                                this.components.plasticLiner.rpm = linerRPM;
-                            }
-                            break;
-                        case 'CookieFormer':
-                            if (state.features.CookieFormer?.properties?.Rate !== undefined) {
-                                const formerRate = parseFloat(state.features.CookieFormer.properties.Rate);
-                                this.components.cookieFormer.rate = formerRate;
-                            }
-                            if (state.features.CookieFormer?.properties?.GoodParts !== undefined) {
-                                const goodParts = parseFloat(state.features.CookieFormer.properties.GoodParts);
-                                this.components.cookieFormer.goodParts = goodParts;
-                            }
-                            break;
-                        case 'BoxSealer':
-                            if (state.features.BoxSealer?.properties?.Speed !== undefined) {
-                                const boxSealerSpeed = parseFloat(state.features.BoxSealer.properties.Speed);
-                                this.components.boxSealer.speed = boxSealerSpeed;
-                            }
-                            break;
-                        case 'ConveyorSystem':
-                            if (state.features.Conveyor?.properties?.Speed !== undefined) {
-                                const conveyorSpeed = parseFloat(state.features.Conveyor.properties.Speed);
-                                this.components.conveyorSystem.speed = conveyorSpeed;
-                            }
-                            break;
-                    }
-                    
-                    // Update this component's tag content
-                    if (this.tags[tagId]) {
-                        this.updateComponentTagContent(tagId, state);
-                    }
-                }
-            });
-        }
-    }
-
-    /**
      * Helper method to create a tag for a component
      * @param {string} id - Tag ID
      * @param {THREE.Object3D} object - Object to attach tag to
      * @param {Object} options - Tag options
      */
     createComponentTag(id, object, options) {
-        const tagGroup = new THREE.Group();
-
-        // Position tag
+        // Create tag in the manager
+        this.tagManager.createTag(id, options.content, id);
+        
+        // Store reference to 3D object for positioning
         const position = options.position || [0, 3, 0];
-        tagGroup.position.set(position[0], position[1], position[2]);
-
-        // Create text using HTML and CSS
-        const tagElement = document.createElement('div');
-        tagElement.className = 'floating-tag';
-        tagElement.id = `tag-${id}`;
-        tagElement.style.position = 'absolute';
-        tagElement.style.padding = '8px';
-        tagElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        tagElement.style.color = 'white';
-        tagElement.style.borderRadius = '5px';
-        tagElement.style.fontSize = '12px';
-        tagElement.style.fontFamily = 'Arial, sans-serif';
-        tagElement.style.width = 'auto';
-        tagElement.style.textAlign = 'left';
-        tagElement.style.display = this.showTags ? 'block' : 'none';
-        tagElement.style.transform = `translate(-50%, -50%) scale(${this.tagBaseScale})`;
-        tagElement.style.opacity = this.tagBaseOpacity.toString();
-        tagElement.style.transition = `transform ${this.tagScaleTransition}s ease-out, opacity ${this.tagScaleTransition}s ease-out`;
-        tagElement.innerHTML = options.content;
-
-        // Add mouse interaction
-        this.setupTagInteraction(tagElement, id);
-
-        this.tagContainer.appendChild(tagElement);
-
-        // Store references with the specific component type instead of generic "equipment"
-        this.tags[id] = {
-            element: tagElement,
-            object3D: tagGroup,
-            type: id  // Use the component ID as the type directly
+        this.tagObjects[id] = {
+            object3D: object,
+            offset: new THREE.Vector3(position[0], position[1], position[2])
         };
-
-        object.add(tagGroup);
     }
 
     /**
      * Update floating tag positions based on 3D positions
      */
     updateTagPositions() {
-        if (!this.camera || !this.renderer || !this.tagContainer) return;
-
-        // If tags are not shown at all, hide all tags and skip the rest
-        if (!this.showTags) {
-            Object.keys(this.tags).forEach(tagId => {
-                const tag = this.tags[tagId];
-                tag.element.style.display = 'none';
-            });
-            return;
-        }
+        if (!this.camera || !this.renderer || !this.tagManager) return;
 
         // Update all tag positions
-        Object.keys(this.tags).forEach(tagId => {
-            const tag = this.tags[tagId];
-            const position = this.getTagViewportPosition(tag);
+        Object.keys(this.tagObjects).forEach(tagId => {
+            const tagObject = this.tagObjects[tagId];
+            const position = this.getTagViewportPosition(tagObject);
 
             // Should the tag be displayed?
             const shouldDisplay = position.inFront && position.inBounds;
 
-            if (shouldDisplay) {
-                // Position the tag
-                tag.element.style.left = `${position.x}px`;
-                tag.element.style.top = `${position.y}px`;
-                tag.element.style.display = 'block';
-            } else {
-                tag.element.style.display = 'none';
-            }
+            // Update tag position in the manager, including distance information
+            this.tagManager.updateTagPosition(
+                tagId, 
+                position.x, 
+                position.y, 
+                shouldDisplay && this.showTags,
+                position.distance
+            );
         });
     }
 
     /**
      * Get viewport position for a tag
-     * @param {Object} tag - Tag object
+     * @param {Object} tagObject - Tag object data
      * @returns {Object} - Position object with x, y, z and computed screen coordinates
      */
-    getTagViewportPosition(tag) {
+    getTagViewportPosition(tagObject) {
         const tempVector = new THREE.Vector3();
         const containerRect = this.container.getBoundingClientRect();
 
-        // Get world position of tag
-        tempVector.setFromMatrixPosition(tag.object3D.matrixWorld);
-
-        // Get object position for distance calculation
+        // Get world position of object
         const objectPos = new THREE.Vector3();
-        tag.object3D.getWorldPosition(objectPos);
+        tagObject.object3D.getWorldPosition(objectPos);
+        
+        // Add offset if specified
+        if (tagObject.offset) {
+            objectPos.add(tagObject.offset);
+        }
 
         // Calculate distance to camera
         const distance = this.camera.position.distanceTo(objectPos);
 
         // Project 3D position to 2D screen position
-        tempVector.project(this.camera);
+        tempVector.copy(objectPos).project(this.camera);
 
         // Convert to CSS coordinates
         const x = (tempVector.x * 0.5 + 0.5) * containerRect.width;
@@ -1024,11 +711,11 @@ class ThreeJSVisualizer {
      * @param {Object} data - New data to display
      */
     updateTagContent(tagId, data) {
-        const tag = this.tags[tagId];
-        if (!tag) return;
+        let content = '';
+        let styles = {};
 
-        if (tag.type === 'mixer') {
-            tag.element.innerHTML = `
+        if (tagId.startsWith('Mixer_')) {
+            content = `
                 <div><strong>${tagId}</strong></div>
                 <div>Temperature: ${data.temperature}°C</div>
                 <div>RPM: ${data.rpm}</div>
@@ -1037,18 +724,18 @@ class ThreeJSVisualizer {
 
             // Update color based on temperature
             const tempColor = this.getTemperatureColor(data.temperature);
-            tag.element.style.borderLeft = `4px solid ${tempColor}`;
+            styles.borderLeft = `4px solid ${tempColor}`;
 
             // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'watertank') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'WaterTank') {
+            content = `
                 <div><strong>Water Tank</strong></div>
                 <div>Flow Rate: ${data.waterFlowRate}</div>
                 <div>Volume: ${data.tankVolume}%</div>
@@ -1057,23 +744,23 @@ class ThreeJSVisualizer {
 
             // Update color based on flow rate
             if (data.waterFlowRate > 70) {
-                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high flow
+                styles.borderLeft = '4px solid #ff0000'; // Red for high flow
             } else if (data.waterFlowRate > 50) {
-                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for medium flow
+                styles.borderLeft = '4px solid #ffaa00'; // Orange for medium flow
             } else {
-                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal flow
+                styles.borderLeft = '4px solid #00ff00'; // Green for normal flow
             }
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'FreezerTunnel') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'FreezerTunnel') {
+            content = `
                 <div><strong>Freezer Tunnel</strong></div>
                 <div>Temperature: ${data.freezerTemperature}°C</div>
                 <div>Speed: ${data.freezerSpeed} m/s</div>
@@ -1082,18 +769,18 @@ class ThreeJSVisualizer {
             
             // Blue color for cold temperatures
             const freezerColor = this.getFreezerTemperatureColor(data.freezerTemperature);
-            tag.element.style.borderLeft = `4px solid ${freezerColor}`;
+            styles.borderLeft = `4px solid ${freezerColor}`;
             
             // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'PlasticLiner') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'PlasticLiner') {
+            content = `
                 <div><strong>Plastic Liner</strong></div>
                 <div>RPM: ${data.linerRPM}</div>
                 <div>Status: ${data.status}</div>
@@ -1101,23 +788,23 @@ class ThreeJSVisualizer {
             
             // Color based on RPM
             if (data.linerRPM > 60) {
-                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high RPM
+                styles.borderLeft = '4px solid #ff0000'; // Red for high RPM
             } else if (data.linerRPM < 30) {
-                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low RPM
+                styles.borderLeft = '4px solid #ffaa00'; // Orange for low RPM
             } else {
-                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+                styles.borderLeft = '4px solid #00ff00'; // Green for normal
             }
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'CookieFormer') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'CookieFormer') {
+            content = `
                 <div><strong>Cookie Former</strong></div>
                 <div>Rate: ${data.cookieFormerRate}/min</div>
                 <div>Good Parts: ${data.goodParts}%</div>
@@ -1126,23 +813,23 @@ class ThreeJSVisualizer {
             
             // Color based on good parts percentage
             if (data.goodParts < 95) {
-                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for low quality
+                styles.borderLeft = '4px solid #ff0000'; // Red for low quality
             } else if (data.goodParts < 98) {
-                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for medium quality
+                styles.borderLeft = '4px solid #ffaa00'; // Orange for medium quality
             } else {
-                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for high quality
+                styles.borderLeft = '4px solid #00ff00'; // Green for high quality
             }
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'BoxSealer') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'BoxSealer') {
+            content = `
                 <div><strong>Box Sealer</strong></div>
                 <div>Speed: ${data.boxSealerSpeed} m/s</div>
                 <div>Status: ${data.status}</div>
@@ -1151,23 +838,23 @@ class ThreeJSVisualizer {
             // Color based on speed
             const speed = data.boxSealerSpeed;
             if (speed > 1.5) {
-                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high speed
+                styles.borderLeft = '4px solid #ff0000'; // Red for high speed
             } else if (speed < 0.3) {
-                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low speed
+                styles.borderLeft = '4px solid #ffaa00'; // Orange for low speed
             } else {
-                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+                styles.borderLeft = '4px solid #00ff00'; // Green for normal
             }
             
             // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
-        } else if (tag.type === 'ConveyorSystem') {
-            tag.element.innerHTML = `
+        } else if (tagId === 'ConveyorSystem') {
+            content = `
                 <div><strong>Conveyor System</strong></div>
                 <div>Speed: ${data.conveyorSpeed} m/s</div>
                 <div>Status: ${data.status}</div>
@@ -1175,21 +862,30 @@ class ThreeJSVisualizer {
             
             // Color based on speed
             if (data.conveyorSpeed > 1.5) {
-                tag.element.style.borderLeft = '4px solid #ff0000'; // Red for high speed
+                styles.borderLeft = '4px solid #ff0000'; // Red for high speed
             } else if (data.conveyorSpeed < 0.3) {
-                tag.element.style.borderLeft = '4px solid #ffaa00'; // Orange for low speed
+                styles.borderLeft = '4px solid #ffaa00'; // Orange for low speed
             } else {
-                tag.element.style.borderLeft = '4px solid #00ff00'; // Green for normal
+                styles.borderLeft = '4px solid #00ff00'; // Green for normal
             }
             
-            // Update color based on alarm status - same as mixers
+            // Update color based on alarm status
             if (data.status === 'ACTIVE') {
-                tag.element.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
             } else if (data.status === 'ACKNOWLEDGED') {
-                tag.element.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
             } else {
-                tag.element.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             }
+        }
+
+        // Update tag content and styles using the tag manager
+        if (content) {
+            this.tagManager.updateTagContent(tagId, content);
+        }
+        
+        if (Object.keys(styles).length > 0) {
+            this.tagManager.updateTagStyle(tagId, styles);
         }
     }
 
@@ -1225,14 +921,7 @@ class ThreeJSVisualizer {
      */
     toggleTags(visible) {
         this.showTags = visible !== undefined ? visible : !this.showTags;
-
-        // Set visibility for all tags
-        Object.keys(this.tags).forEach(tagId => {
-            const tag = this.tags[tagId];
-            if (tag && tag.element) {
-                tag.element.style.display = this.showTags ? 'block' : 'none';
-            }
-        });
+        this.tagManager.toggleTags(this.showTags);
     }
 
     /**
@@ -1416,8 +1105,8 @@ class ThreeJSVisualizer {
                 }
             }
 
-            // Update tag content for this mixer
-            if (this.tags[mixer.name]) {
+            // Update tag content for this mixer using the tag manager
+            if (this.tagManager) {
                 this.updateTagContent(mixer.name, {
                     temperature: temperature,
                     rpm: rpm,
@@ -1442,8 +1131,8 @@ class ThreeJSVisualizer {
                 }
             });
 
-            // Update water tank tag content - Use the stored water tank status
-            if (this.tags['WaterTank']) {
+            // Update water tank tag content using the tag manager
+            if (this.tagManager) {
                 this.updateTagContent('WaterTank', {
                     waterFlowRate: this.components.waterTank.flowRate,
                     tankVolume: this.components.waterTank.tankVolume,
@@ -1465,8 +1154,8 @@ class ThreeJSVisualizer {
                 this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
             }
 
-            // Update freezer tunnel tag content - Use the stored freezer status
-            if (this.tags['FreezerTunnel']) {
+            // Update freezer tunnel tag content using the tag manager
+            if (this.tagManager) {
                 this.updateTagContent('FreezerTunnel', {
                     freezerTemperature: this.components.freezerTunnel.temperature,
                     freezerSpeed: this.components.freezerTunnel.speed,
@@ -1497,8 +1186,8 @@ class ThreeJSVisualizer {
                 this.textureOffsets['plastic_liner'] = offset;
             }
 
-            // Update plastic liner tag content - Use the stored plastic liner status
-            if (this.tags['PlasticLiner']) {
+            // Update plastic liner tag content using the tag manager
+            if (this.tagManager) {
                 this.updateTagContent('PlasticLiner', {
                     linerRPM: this.components.plasticLiner.rpm,
                     status: this.components.plasticLiner.status
@@ -1506,8 +1195,8 @@ class ThreeJSVisualizer {
             }
         }
 
-        // Update cookie former - Use the stored cookie former status
-        if (this.components.cookieFormer.object3D && this.tags['CookieFormer']) {
+        // Update cookie former using the tag manager
+        if (this.components.cookieFormer.object3D && this.tagManager) {
             this.updateTagContent('CookieFormer', {
                 cookieFormerRate: this.components.cookieFormer.rate,
                 goodParts: this.components.cookieFormer.goodParts,
@@ -1515,8 +1204,8 @@ class ThreeJSVisualizer {
             });
         }
 
-        // Update box sealer - Use the stored box sealer status
-        if (this.components.boxSealer.object3D && this.tags['BoxSealer']) {
+        // Update box sealer using the tag manager
+        if (this.components.boxSealer.object3D && this.tagManager) {
             this.updateTagContent('BoxSealer', {
                 boxSealerSpeed: this.components.boxSealer.speed,
                 status: this.components.boxSealer.status
@@ -1542,8 +1231,8 @@ class ThreeJSVisualizer {
             }
         });
 
-        // Update conveyor system tag if it exists - Use the stored conveyor status
-        if (this.tags['ConveyorSystem']) {
+        // Update conveyor system tag if it exists using the tag manager
+        if (this.tagManager) {
             this.updateTagContent('ConveyorSystem', {
                 conveyorSpeed: this.components.conveyorSystem.speed,
                 status: this.components.conveyorSystem.status
@@ -1607,8 +1296,8 @@ class ThreeJSVisualizer {
                         mixer.data = mixer.data || {};
                         mixer.data.temperature = temp;
                         
-                        // Update tag if it exists
-                        if (this.tags[mixerKey]) {
+                        // Update tag if it exists using tagManager instead of this.tags
+                        if (this.tagManager) {
                             this.updateTagContent(mixerKey, {
                                 temperature: temp,
                                 rpm: mixer.data.rpm || this.components.mixers.rpm,
@@ -1634,8 +1323,8 @@ class ThreeJSVisualizer {
                         mixer.data = mixer.data || {};
                         mixer.data.rpm = rpm;
                         
-                        // Update tag if it exists
-                        if (this.tags[mixerKey]) {
+                        // Update tag if it exists using tagManager instead of this.tags
+                        if (this.tagManager) {
                             this.updateTagContent(mixerKey, {
                                 temperature: mixer.data.temperature || this.components.mixers.temperature,
                                 rpm: rpm,
@@ -1651,7 +1340,7 @@ class ThreeJSVisualizer {
                 }
             }
             
-            // Update alarm status - THIS IS THE KEY PART THAT WORKS PROPERLY FOR MIXERS
+            // Update alarm status
             const alarmKey = `${mixerKey}_AlarmComponent`;
             if (twinState.features?.[alarmKey]?.properties?.alarm_status !== undefined) {
                 const status = twinState.features[alarmKey].properties.alarm_status;
@@ -1662,8 +1351,8 @@ class ThreeJSVisualizer {
                     mixer.data = mixer.data || {};
                     mixer.data.status = status;
                     
-                    // Update tag immediately with the new status
-                    if (this.tags[mixerKey]) {
+                    // Update tag immediately with the new status using tagManager instead of this.tags
+                    if (this.tagManager) {
                         this.updateTagContent(mixerKey, {
                             temperature: mixer.data.temperature || this.components.mixers.temperature,
                             rpm: mixer.data.rpm || this.components.mixers.rpm,
@@ -1685,8 +1374,8 @@ class ThreeJSVisualizer {
             if (!isNaN(flowRate)) {
                 this.components.waterTank.flowRate = flowRate;
                 
-                // Update tag content for water tank
-                if (this.tags['WaterTank']) {
+                // Update tag content for water tank using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: flowRate,
                         tankVolume: this.components.waterTank.tankVolume,
@@ -1702,8 +1391,8 @@ class ThreeJSVisualizer {
             if (!isNaN(tankVolume)) {
                 this.components.waterTank.tankVolume = tankVolume;
                 
-                // Update tag content for water tank
-                if (this.tags['WaterTank']) {
+                // Update tag content for water tank using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('WaterTank', {
                         waterFlowRate: this.components.waterTank.flowRate,
                         tankVolume: tankVolume,
@@ -1720,8 +1409,8 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.waterTank.status = waterTankStatus;
             
-            // Update tag content for water tank with the status directly from the backend
-            if (this.tags['WaterTank']) {
+            // Update tag content for water tank with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('WaterTank', {
                     waterFlowRate: this.components.waterTank.flowRate,
                     tankVolume: this.components.waterTank.tankVolume,
@@ -1744,8 +1433,8 @@ class ThreeJSVisualizer {
                     this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
                 }
                 
-                // Update freezer tunnel tag - make sure to get the latest state
-                if (this.tags['FreezerTunnel']) {
+                // Update freezer tunnel tag using tagManager instead of this.tags
+                if (this.tagManager) {
                     const state = twinState.features.FreezerTunnel.properties.Status || 'RUNNING';
                     this.updateTagContent('FreezerTunnel', {
                         freezerTemperature: freezerTemp,
@@ -1763,8 +1452,8 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.freezerTunnel.status = freezerStatus;
 
-            // Update freezer tunnel tag with the status directly from the backend
-            if (this.tags['FreezerTunnel']) {
+            // Update freezer tunnel tag with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('FreezerTunnel', {
                     freezerTemperature: this.components.freezerTunnel.temperature,
                     freezerSpeed: this.components.freezerTunnel.speed,
@@ -1788,8 +1477,8 @@ class ThreeJSVisualizer {
                 // Get the latest status directly from the backend
                 const linerStatus = twinState.features.PlasticLiner?.properties?.Status || 'NORMAL';
                 
-                // Update tag content for plastic liner with the latest status
-                if (this.tags['PlasticLiner']) {
+                // Update tag content for plastic liner with the latest status using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('PlasticLiner', {
                         linerRPM: linerRPM,
                         status: linerStatus
@@ -1805,8 +1494,8 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.plasticLiner.status = linerStatus;
             
-            // Update tag content for plastic liner with the status directly from the backend
-            if (this.tags['PlasticLiner']) {
+            // Update tag content for plastic liner with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('PlasticLiner', {
                     linerRPM: this.components.plasticLiner.rpm,
                     status: linerStatus // Use the status directly from the backend
@@ -1823,8 +1512,8 @@ class ThreeJSVisualizer {
                 // Get the latest status directly from the backend
                 const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
                 
-                // Update tag content for cookie former
-                if (this.tags['CookieFormer']) {
+                // Update tag content for cookie former using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('CookieFormer', {
                         cookieFormerRate: formerRate,
                         goodParts: this.components.cookieFormer.goodParts,
@@ -1843,8 +1532,8 @@ class ThreeJSVisualizer {
                 // Get the latest status directly from the backend
                 const formerStatus = twinState.features.CookieFormer?.properties?.Status || 'OPERATIONAL';
                 
-                // Update tag content for cookie former
-                if (this.tags['CookieFormer']) {
+                // Update tag content for cookie former using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('CookieFormer', {
                         cookieFormerRate: this.components.cookieFormer.rate,
                         goodParts: goodParts,
@@ -1861,8 +1550,8 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.cookieFormer.status = formerStatus;
             
-            // Update tag content for cookie former with the status directly from the backend
-            if (this.tags['CookieFormer']) {
+            // Update tag content for cookie former with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('CookieFormer', {
                     cookieFormerRate: this.components.cookieFormer.rate,
                     goodParts: this.components.cookieFormer.goodParts,
@@ -1881,10 +1570,10 @@ class ThreeJSVisualizer {
                 // Get the latest status directly from the backend
                 const boxSealerStatus = twinState.features.BoxSealer?.properties?.Status || 'OPERATIONAL';
                 
-                // Update tag content for box sealer
-                if (this.tags['BoxSealer']) {
+                // Update tag content for box sealer using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('BoxSealer', {
-                        conveyorSpeed: boxSealerSpeed,
+                        boxSealerSpeed: boxSealerSpeed,
                         status: boxSealerStatus
                     });
                 }
@@ -1898,10 +1587,10 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.boxSealer.status = boxSealerStatus;
             
-            // Update tag content for box sealer with the status directly from the backend
-            if (this.tags['BoxSealer']) {
+            // Update tag content for box sealer with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('BoxSealer', {
-                    conveyorSpeed: this.components.boxSealer.speed || this.components.conveyorSystem.speed,
+                    boxSealerSpeed: this.components.boxSealer.speed,
                     status: boxSealerStatus // Use the status directly from the backend
                 });
             }
@@ -1916,8 +1605,8 @@ class ThreeJSVisualizer {
                 // Get the latest status directly from the backend
                 const conveyorStatus = twinState.features.Conveyor?.properties?.Status || 'RUNNING';
                 
-                // Update conveyor system tag
-                if (this.tags['ConveyorSystem']) {
+                // Update conveyor system tag using tagManager instead of this.tags
+                if (this.tagManager) {
                     this.updateTagContent('ConveyorSystem', {
                         conveyorSpeed: conveyorSpeed,
                         status: conveyorStatus
@@ -1933,8 +1622,8 @@ class ThreeJSVisualizer {
             // Store the status in the model state for use in animation updates
             this.components.conveyorSystem.status = conveyorStatus;
             
-            // Update conveyor system tag with the status directly from the backend
-            if (this.tags['ConveyorSystem']) {
+            // Update conveyor system tag with the status directly from the backend using tagManager instead of this.tags
+            if (this.tagManager) {
                 this.updateTagContent('ConveyorSystem', {
                     conveyorSpeed: this.components.conveyorSystem.speed,
                     status: conveyorStatus // Use the status directly from the backend
@@ -2042,10 +1731,14 @@ class ThreeJSVisualizer {
      * @param {boolean} keepContainer - Whether to keep the container intact (for model changes)
      */
     cleanup(keepContainer = false) {
-        // Reset tag interaction state
-        this.hoveredTag = null;
-        this.focusedTag = null;
-
+        // Clear tag management
+        if (this.tagManager) {
+            this.tagManager.cleanup();
+            this.tagManager = null;
+        }
+        
+        this.tagObjects = {};
+        
         // Reset texture offsets
         this.textureOffsets = {};
 
@@ -2056,21 +1749,6 @@ class ThreeJSVisualizer {
             cancelAnimationFrame(this.animationFrame);
             this.animationFrame = null;
         }
-
-        // Clean up floating tags
-        if (this.tagContainer && this.tagContainer.parentNode) {
-            this.tagContainer.parentNode.removeChild(this.tagContainer);
-            this.tagContainer = null;
-        }
-
-        // Clean up individual tag elements
-        Object.keys(this.tags).forEach(tagId => {
-            const tag = this.tags[tagId];
-            if (tag && tag.element && tag.element.parentNode) {
-                tag.element.parentNode.removeChild(tag.element);
-            }
-        });
-        this.tags = {};
 
         // Clean up scene
         if (this.scene) {
