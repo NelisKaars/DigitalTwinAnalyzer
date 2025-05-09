@@ -407,6 +407,22 @@ const FactoryScene = {
         };
     },
     
+    // Apply transforms from scene definition to a model
+    // This function has been moved from the framework-specific visualizer to be reusable
+    applyModelTransform(model, nodeData, framework) {
+        if (!nodeData || !nodeData.transform) return;
+
+        const transform = nodeData.transform;
+        
+        // Framework implementations need to handle this in their own way,
+        // but we can pass back a standardized structure
+        return {
+            position: transform.position || [0, 0, 0],
+            rotation: transform.rotation || [0, 0, 0],
+            scale: transform.scale || [1, 1, 1]
+        };
+    },
+    
     // Get camera waypoints for the factory scene tour
     getFactoryWaypoints() {
         return [

@@ -3,9 +3,13 @@
  * Handles framework switching, UI interactions, and coordinates with the Ditto API
  */
 document.addEventListener('DOMContentLoaded', () => {
+    // Check for saved theme preference
+    const savedDarkMode = localStorage.getItem('isDarkMode');
+    const prefersDarkMode = savedDarkMode !== null ? savedDarkMode === 'true' : true; // Default to dark mode
+    
     // Dashboard state
     const dashboardState = {
-        currentFramework: 'threejs',
+        currentFramework: 'threejs', // Default framework
         currentModel: 'factory', // Always use the factory model
         frameworkInstances: {},
         activeInstance: null,
@@ -15,8 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
         controlUpdateTimeout: null, // Debounce timer for control updates
         selectedMixer: 'all', // Selected mixer in factory view
         isSimulationActive: false, // Flag to track if simulation is active
-        activeComponent: 'mixers' // Currently active component section
+        activeComponent: 'mixers', // Currently active component section
+        isDarkMode: prefersDarkMode // Use saved preference or default
     };
+    
+    // Apply theme immediately
+    document.body.classList.toggle('light-mode', !prefersDarkMode);
     
     // Framework library dependencies
     const frameworkLibraries = {
@@ -28,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'babylonjs': [
             'https://cdn.babylonjs.com/babylon.js',
             'https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js'
+        ],
+        'playcanvas': [
+            'https://code.playcanvas.com/playcanvas-stable.min.js'
         ],
         'unity': []
     };
@@ -51,6 +62,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+        
+        // Theme Toggle
+        const themeSwitch = document.getElementById('theme-switch');
+        if (themeSwitch) {
+            // Set initial state based on dashboardState
+            themeSwitch.checked = !dashboardState.isDarkMode;
+            document.body.classList.toggle('light-mode', !dashboardState.isDarkMode);
+            
+            // Add event listener
+            themeSwitch.addEventListener('change', () => {
+                // Toggle the theme mode in the state
+                dashboardState.isDarkMode = !themeSwitch.checked;
+                
+                // Toggle the light-mode class on the body
+                document.body.classList.toggle('light-mode', themeSwitch.checked);
+                
+                // Save the preference to localStorage
+                localStorage.setItem('isDarkMode', !themeSwitch.checked);
+            });
+        }
         
         // Component selector
         const componentSelector = document.getElementById('component-selector');
@@ -392,6 +423,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.framework-list li').forEach(item => {
             item.classList.toggle('active', item.dataset.framework === frameworkId);
         });
+        
+        // Stop metrics collection and then reset metrics before switching frameworks
+        MetricsCollector.reset();
         
         // Update state
         dashboardState.currentFramework = frameworkId;

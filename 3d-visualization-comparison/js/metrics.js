@@ -47,6 +47,7 @@ const MetricsCollector = {
     
     // Reset all metrics
     reset() {
+        this.stop();
         this.metrics = {
             fps: [],
             memory: [],

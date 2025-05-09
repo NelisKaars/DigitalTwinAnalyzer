@@ -10,6 +10,15 @@
 <body>
     <header>
         <h1>Digital Twin Visualization Framework Comparison</h1>
+        <div class="theme-toggle-container">
+            <label class="theme-toggle" for="theme-switch">
+                <input type="checkbox" id="theme-switch">
+                <span class="theme-toggle-slider">
+                    <span class="theme-toggle-icon light">🌙</span>
+                    <span class="theme-toggle-icon dark">☀️</span>
+                </span>
+            </label>
+        </div>
     </header>
 
     <div class="container">
@@ -19,6 +28,7 @@
                 <ul class="framework-list">
                     <li data-framework="threejs" class="active">Three.js</li>
                     <li data-framework="babylonjs">Babylon.js</li>
+                    <li data-framework="playcanvas">PlayCanvas</li>
                     <li data-framework="unity">Unity WebGL</li>
                 </ul>
             </div>
@@ -286,6 +296,9 @@
 
     <script src="js/common.js"></script>
     <script src="js/tag-manager.js"></script>
+    <script src="js/visualization-components.js"></script>
+    <script src="js/dt-data-processor.js"></script>
+    <script src="js/factory-model-loader.js"></script>
     <script src="js/metrics.js"></script>
     <script src="js/simulation.js"></script>
     <script src="js/dashboard.js"></script>

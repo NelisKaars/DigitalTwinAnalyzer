@@ -111,6 +111,196 @@ class TagManager {
     }
     
     /**
+     * Create a tag for a specific component with standard formatting
+     * @param {string} id - Component ID
+     * @param {Object} options - Tag configuration options
+     * @param {string} options.content - HTML content for the tag
+     * @param {string} [options.type] - Tag type (defaults to component ID)
+     * @returns {string} - ID of the created tag
+     */
+    createComponentTag(id, options) {
+        const content = options.content || `<div><strong>${id}</strong></div>`;
+        const type = options.type || id.toLowerCase();
+        
+        // Create the tag with the provided content
+        this.createTag(id, content, type);
+        
+        return id;
+    }
+    
+    /**
+     * Update a tag's content based on component data
+     * @param {string} tagId - ID of the tag
+     * @param {Object} data - Component data to display in the tag
+     */
+    updateComponentTagContent(tagId, data) {
+        if (!this.tags[tagId]) return;
+        
+        let content = '';
+        let styles = {};
+        
+        // Generate content and styles based on component type and data
+        switch(tagId) {
+            case 'WaterTank':
+                content = `
+                    <div><strong>Water Tank</strong></div>
+                    <div>Flow Rate: ${data.waterFlowRate || data.flowRate || '—'}</div>
+                    <div>Volume: ${data.tankVolume || data.volume || '—'}%</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                // Apply styles based on status and flow rate
+                styles.borderLeft = `4px solid ${this.getStatusColor(data.status)}`;
+                break;
+                
+            case 'FreezerTunnel':
+                content = `
+                    <div><strong>Freezer Tunnel</strong></div>
+                    <div>Temperature: ${data.temperature || data.freezerTemperature || '—'}°C</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                // Apply styles based on freezer temperature
+                const temp = data.temperature || data.freezerTemperature || -15;
+                styles.borderLeft = `4px solid ${this.getFreezerTemperatureColor(temp)}`;
+                break;
+                
+            case 'PlasticLiner':
+                content = `
+                    <div><strong>Plastic Liner</strong></div>
+                    <div>RPM: ${data.rpm || data.linerRPM || '—'}</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                styles.borderLeft = `4px solid ${this.getStatusColor(data.status)}`;
+                break;
+                
+            case 'CookieFormer':
+                content = `
+                    <div><strong>Cookie Former</strong></div>
+                    <div>Rate: ${data.rate || data.cookieFormerRate || '—'}/min</div>
+                    <div>Good Parts: ${data.goodParts || '—'}%</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                styles.borderLeft = `4px solid ${this.getStatusColor(data.status)}`;
+                break;
+                
+            case 'BoxSealer':
+                content = `
+                    <div><strong>Box Sealer</strong></div>
+                    <div>Speed: ${data.speed || data.boxSealerSpeed || '—'} m/s</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                styles.borderLeft = `4px solid ${this.getStatusColor(data.status)}`;
+                break;
+                
+            case 'ConveyorSystem':
+                content = `
+                    <div><strong>Conveyor System</strong></div>
+                    <div>Speed: ${data.speed || data.conveyorSpeed || '—'} m/s</div>
+                    <div>Status: ${data.status || '—'}</div>
+                `;
+                
+                styles.borderLeft = `4px solid ${this.getStatusColor(data.status)}`;
+                break;
+                
+            default:
+                // For mixer tags and any custom components
+                if (tagId.startsWith('Mixer_')) {
+                    content = `
+                        <div><strong>${tagId}</strong></div>
+                        <div>Temperature: ${data.temperature || '—'}°C</div>
+                        <div>RPM: ${data.rpm || '—'}</div>
+                        <div>Status: ${data.status || '—'}</div>
+                    `;
+                    
+                    // Temperature-based coloring
+                    const mixerTemp = data.temperature || 100;
+                    styles.borderLeft = `4px solid ${this.getTemperatureColor(mixerTemp)}`;
+                } else {
+                    // Generic content for unknown components
+                    content = `<div><strong>${tagId}</strong></div>`;
+                    for (const key in data) {
+                        if (typeof data[key] !== 'object' && data[key] !== undefined) {
+                            content += `<div>${key}: ${data[key]}</div>`;
+                        }
+                    }
+                }
+        }
+        
+        // Apply alarm status coloring
+        if (data.status === 'ACTIVE') {
+            styles.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+        } else if (data.status === 'ACKNOWLEDGED') {
+            styles.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+        } else if (data.status === 'NORMAL') {
+            styles.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        }
+        
+        // Update tag content and styles
+        this.updateTagContent(tagId, content);
+        
+        if (Object.keys(styles).length > 0) {
+            this.updateTagStyle(tagId, styles);
+        }
+    }
+    
+    /**
+     * Get a color string based on temperature value
+     * @param {number} temp - Temperature value
+     * @returns {string} - CSS color string
+     */
+    getTemperatureColor(temp) {
+        if (temp > 150) return '#ff0000'; // Hot red
+        if (temp > 100) return '#ff5500'; // Very warm orange-red
+        if (temp > 75) return '#ffaa00';  // Warm orange
+        if (temp > 50) return '#ffff00';  // Yellow
+        return '#00aaff';                 // Cool blue
+    }
+    
+    /**
+     * Get a color string based on freezer temperature value
+     * @param {number} temp - Temperature value (typically negative)
+     * @returns {string} - CSS color string
+     */
+    getFreezerTemperatureColor(temp) {
+        if (temp > -5) return '#ff0000';  // Red - too warm for freezer
+        if (temp > -10) return '#ffaa00'; // Orange - slightly warm
+        if (temp > -15) return '#00aaff'; // Light blue - cool
+        if (temp > -20) return '#0055ff'; // Medium blue - cold
+        return '#0000ff';                 // Deep blue - very cold
+    }
+    
+    /**
+     * Get a color string based on component status
+     * @param {string} status - Component status
+     * @returns {string} - CSS color string
+     */
+    getStatusColor(status) {
+        switch(status) {
+            case 'NORMAL':
+            case 'OPERATIONAL':
+            case 'RUNNING':
+                return '#00ff00'; // Green for normal operation
+            case 'ACKNOWLEDGED': 
+                return '#ffaa00'; // Orange for acknowledged alarms
+            case 'WARNING':
+                return '#ffcc00'; // Yellow for warnings
+            case 'ACTIVE':
+            case 'FAULT':
+            case 'CRITICAL':
+                return '#ff0000'; // Red for active alarms/critical states
+            case 'STOPPED':
+            case 'STANDBY':
+                return '#888888'; // Gray for stopped/standby
+            default:
+                return '#00aaff'; // Blue default
+        }
+    }
+    
+    /**
      * Update a tag's position
      * @param {string} id - Tag ID
      * @param {number} x - X coordinate (pixels)
@@ -376,6 +566,108 @@ class TagManager {
         if (maxScale > this.tagFocusScale) {
             this.tagMaxScale = maxScale;
         }
+    }
+
+    /**
+     * Create tags for all components of a digital twin factory
+     * This is a higher-level method that creates all the needed tags in one call
+     * 
+     * @param {Object} components - The component state objects containing data for tag content
+     * @param {Object} tagObjects - Mapping of component IDs to their 3D objects and offsets
+     * @returns {Object} Map of created tag IDs
+     */
+    createAllComponentTags(components, tagObjects) {
+        const createdTags = {};
+        
+        // Create tags for each mixer
+        if (tagObjects && Array.isArray(tagObjects.mixers)) {
+            tagObjects.mixers.forEach((mixer) => {
+                const tagId = mixer.name;
+                
+                // Generate tag content using the visualization components utility
+                const content = VisualizationComponents.generateTagContent('mixer', {
+                    name: mixer.name,
+                    temperature: components.mixers.temperature,
+                    rpm: components.mixers.rpm,
+                    status: components.mixers.status
+                });
+                
+                // Create the tag
+                this.createTag(tagId, content, 'mixer');
+                createdTags[tagId] = tagId;
+            });
+        }
+
+        // Create tag for water tank
+        if (tagObjects.waterTank && tagObjects.waterTank.object3D) {
+            const content = VisualizationComponents.generateTagContent('waterTank', {
+                flowRate: components.waterTank.flowRate,
+                tankVolume: components.waterTank.tankVolume,
+                status: components.waterTank.status
+            });
+            
+            this.createTag('WaterTank', content, 'waterTank');
+            createdTags['WaterTank'] = 'WaterTank';
+        }
+
+        // Create tag for freezer tunnel
+        if (tagObjects.freezerTunnel && tagObjects.freezerTunnel.object3D) {
+            const content = VisualizationComponents.generateTagContent('freezerTunnel', {
+                temperature: components.freezerTunnel.temperature,
+                speed: components.freezerTunnel.speed,
+                status: components.freezerTunnel.status
+            });
+            
+            this.createTag('FreezerTunnel', content, 'freezerTunnel');
+            createdTags['FreezerTunnel'] = 'FreezerTunnel';
+        }
+
+        // Create tag for plastic liner
+        if (tagObjects.plasticLiner && tagObjects.plasticLiner.object3D) {
+            const content = VisualizationComponents.generateTagContent('plasticLiner', {
+                rpm: components.plasticLiner.rpm,
+                status: components.plasticLiner.status
+            });
+            
+            this.createTag('PlasticLiner', content, 'plasticLiner');
+            createdTags['PlasticLiner'] = 'PlasticLiner';
+        }
+
+        // Create tag for cookie former
+        if (tagObjects.cookieFormer && tagObjects.cookieFormer.object3D) {
+            const content = VisualizationComponents.generateTagContent('cookieFormer', {
+                rate: components.cookieFormer.rate,
+                goodParts: components.cookieFormer.goodParts,
+                status: components.cookieFormer.status
+            });
+            
+            this.createTag('CookieFormer', content, 'cookieFormer');
+            createdTags['CookieFormer'] = 'CookieFormer';
+        }
+
+        // Create tag for box sealer
+        if (tagObjects.boxSealer && tagObjects.boxSealer.object3D) {
+            const content = VisualizationComponents.generateTagContent('boxSealer', {
+                speed: components.boxSealer.speed,
+                status: components.boxSealer.status
+            });
+            
+            this.createTag('BoxSealer', content, 'boxSealer');
+            createdTags['BoxSealer'] = 'BoxSealer';
+        }
+
+        // Create tag for conveyor system
+        if (tagObjects.conveyorSystem && tagObjects.conveyorSystem.object3D) {
+            const content = VisualizationComponents.generateTagContent('conveyorSystem', {
+                speed: components.conveyorSystem.speed,
+                status: components.conveyorSystem.status
+            });
+            
+            this.createTag('ConveyorSystem', content, 'conveyorSystem');
+            createdTags['ConveyorSystem'] = 'ConveyorSystem';
+        }
+        
+        return createdTags;
     }
 }
 
