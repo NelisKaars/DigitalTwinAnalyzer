@@ -694,22 +694,13 @@ document.addEventListener('DOMContentLoaded', () => {
      * Start the automated simulation
      */
     function startSimulation() {
-        // Get simulation parameters from UI
-        const duration = parseInt(document.getElementById('simulation-duration').value);
-        const dataInterval = parseInt(document.getElementById('simulation-data-interval').value);
-        
         // Disable controls during simulation
         setSimulationControlsState(true);
         
-        // Initialize the simulation
+        // Initialize the simulation with default values
         Simulation.initialize({
-            duration: duration,
-            dataUpdateInterval: dataInterval,
             onProgress: updateSimulationProgress,
-            onComplete: simulationComplete,
-            onDataUpdate: () => {
-                // Optional callback when data is updated
-            }
+            onComplete: simulationComplete
         });
         
         // Start the simulation with the active framework instance
@@ -763,8 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressFill.style.width = `${percent}%`;
         
         // Update timer display
-        const duration = parseInt(document.getElementById('simulation-duration').value);
-        const elapsed = duration * progress;
+        const elapsed = Simulation.config.duration * progress;
         updateSimulationTimer(elapsed);
     }
     
@@ -815,10 +805,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-simulation').disabled = isRunning;
         document.getElementById('pause-simulation').disabled = !isRunning;
         document.getElementById('stop-simulation').disabled = !isRunning;
-        
-        // Disable input fields when running
-        document.getElementById('simulation-duration').disabled = isRunning;
-        document.getElementById('simulation-data-interval').disabled = isRunning;
         
         // Disable framework selection during simulation
         document.querySelectorAll('.framework-list li').forEach(item => {

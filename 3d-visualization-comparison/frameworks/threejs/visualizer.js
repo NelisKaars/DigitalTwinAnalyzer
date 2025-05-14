@@ -191,7 +191,6 @@ class ThreeJSVisualizer {
 
                     // Find rotating part
                     mixerModel.traverse((node) => {
-                        console.log(node.name + " - " + node.isMesh + " - " + node.name.toLowerCase().includes('mixer') + " - " + node.name.toLowerCase().includes('blade'));
                         if (node.isMesh && (
                             node.name.toLowerCase().includes('mixer') ||
                             node.name.toLowerCase().includes('blade'))) {
@@ -830,194 +829,8 @@ class ThreeJSVisualizer {
      * @param {Object} twinState - Digital twin state data
      */
     updateFromTwin(twinState) {
-        // Process the twin data using the common DTDataProcessor
-        const processedData = DTDataProcessor.processTwinData(twinState, {
-            selectedMixer: window.dashboardState?.selectedMixer || 'all'
-        });
-        
-        if (!processedData) return;
-        
-        // Update mixers
-        Object.entries(processedData.mixers).forEach(([mixerKey, mixerData]) => {
-            // Find the mixer model
-            const mixer = this.mixerModels.find(m => m.name === mixerKey);
-            if (mixer) {
-                // Store data in the mixer model for animation
-                mixer.data = mixer.data || {};
-                mixer.data.temperature = mixerData.temperature;
-                mixer.data.rpm = mixerData.rpm;
-                mixer.data.status = mixerData.status;
-                
-                // Update the global state if this is the selected mixer
-                if (processedData.selectedMixer === mixerKey || processedData.selectedMixer === 'all') {
-                    this.components.mixers.temperature = mixerData.temperature;
-                    this.components.mixers.rpm = mixerData.rpm;
-                    this.components.mixers.status = mixerData.status;
-                }
-            }
-        });
-        
-        // Update water tank
-        this.components.waterTank.flowRate = processedData.waterTank.flowRate;
-        this.components.waterTank.tankVolume = processedData.waterTank.tankVolume;
-        this.components.waterTank.status = processedData.waterTank.status;
-        
-        // Update freezer tunnel
-        this.components.freezerTunnel.temperature = processedData.freezerTunnel.temperature;
-        this.components.freezerTunnel.speed = processedData.freezerTunnel.speed;
-        this.components.freezerTunnel.status = processedData.freezerTunnel.status;
-        
-        // Update plastic liner
-        this.components.plasticLiner.rpm = processedData.plasticLiner.rpm;
-        this.components.plasticLiner.status = processedData.plasticLiner.status;
-        
-        // Update cookie former
-        this.components.cookieFormer.rate = processedData.cookieFormer.rate;
-        this.components.cookieFormer.goodParts = processedData.cookieFormer.goodParts;
-        this.components.cookieFormer.status = processedData.cookieFormer.status;
-        
-        // Update box sealer
-        this.components.boxSealer.speed = processedData.boxSealer.speed;
-        this.components.boxSealer.status = processedData.boxSealer.status;
-        
-        // Update conveyor system
-        this.components.conveyorSystem.speed = processedData.conveyorSystem.speed;
-        this.components.conveyorSystem.status = processedData.conveyorSystem.status;
-    }
-
-    /**
-     * Focus the camera on a specific mixer in the factory
-     * @param {string} mixerName - Name of the mixer to focus on (e.g., "Mixer_0") or "all"
-     */
-    focusOnMixer(mixerName) {
-        if (!this.isInitialized || this.modelId !== 'factory') return;
-
-        if (mixerName === 'all') {
-            // Reset camera to overview position
-            this.camera.position.set(35, 30, 100);
-            this.controls.target.set(35, 0, 75);
-            this.controls.update();
-            return;
-        }
-
-        // Find the selected mixer
-        const mixer = this.mixerModels.find(m => m.name === mixerName);
-        if (mixer) {
-            const pos = mixer.model.position;
-
-            // Move camera to focus on this mixer
-            this.camera.position.set(pos.x, pos.y + 5, pos.z + 10);
-            this.controls.target.set(pos.x, pos.y, pos.z);
-            this.controls.update();
-
-            this.selectedMixer = mixer;
-        }
-    }
-
-    /**
-     * Focus the camera on a specific component in the factory
-     * @param {string} componentId - ID of the component to focus on (e.g., "WaterTank")
-     */
-    focusOnComponent(componentId) {
-        if (!this.isInitialized || this.modelId !== 'factory') return;
-
-        // For mixers, use existing focusOnMixer method
-        if (componentId.startsWith('Mixer_')) {
-            this.focusOnMixer(componentId);
-            return;
-        }
-
-        // Get common camera focus parameters
-        const cameraParams = VisualizationComponents.getComponentCameraFocus(componentId);
-        
-        // If no parameters found or this is a special case, fallback to default
-        if (!cameraParams) {
-            console.warn(`No camera parameters found for component: ${componentId}`);
-            return;
-        }
-
-        let targetObject = null;
-
-        // Find the component based on its ID
-        switch(componentId) {
-            case 'WaterTank':
-                targetObject = this.components.waterTank.object3D;
-                break;
-            
-            case 'FreezerTunnel':
-                targetObject = this.components.freezerTunnel.object3D;
-                break;
-            
-            case 'PlasticLiner':
-                targetObject = this.components.plasticLiner.object3D;
-                break;
-            
-            case 'CookieFormer':
-                targetObject = this.components.cookieFormer.object3D;
-                break;
-            
-            case 'BoxSealer':
-                targetObject = this.components.boxSealer.object3D;
-                break;
-            
-            case 'ConveyorSystem':
-                // Find a conveyor to focus on
-                const conveyorIds = Object.keys(this.conveyors);
-                if (conveyorIds.length > 0) {
-                    targetObject = this.conveyors[conveyorIds[0]];
-                }
-                break;
-            
-            default:
-                // Default to overview position if component not found
-                this.camera.position.set(
-                    cameraParams.default.camera[0], 
-                    cameraParams.default.camera[1], 
-                    cameraParams.default.camera[2]
-                );
-                this.controls.target.set(
-                    cameraParams.default.target[0], 
-                    cameraParams.default.target[1], 
-                    cameraParams.default.target[2]
-                );
-                this.controls.update();
-                return;
-        }
-
-        if (targetObject && cameraParams.useWorldPosition) {
-            // Get world position of the object
-            const pos = new THREE.Vector3();
-            targetObject.getWorldPosition(pos);
-
-            // Use the camera offset from the common parameters
-            this.camera.position.set(
-                pos.x + cameraParams.offset.camera[0],
-                pos.y + cameraParams.offset.camera[1],
-                pos.z + cameraParams.offset.camera[2]
-            );
-            
-            // Look at the object position
-            this.controls.target.set(
-                pos.x + cameraParams.offset.target[0], 
-                pos.y + cameraParams.offset.target[1], 
-                pos.z + cameraParams.offset.target[2]
-            );
-            
-            this.controls.update();
-        } else {
-            // Fallback to overview position
-            this.camera.position.set(
-                cameraParams.default.camera[0], 
-                cameraParams.default.camera[1], 
-                cameraParams.default.camera[2]
-            );
-            this.controls.target.set(
-                cameraParams.default.target[0], 
-                cameraParams.default.target[1], 
-                cameraParams.default.target[2]
-            );
-            this.controls.update();
-        }
+        // Use the common implementation from VisualizationComponents
+        VisualizationComponents.updateFromTwin(this, twinState);
     }
 
     /**
@@ -1044,12 +857,116 @@ class ThreeJSVisualizer {
     }
 
     /**
+     * Focus the camera on a specific mixer in the factory
+     * @param {string} mixerName - Name of the mixer to focus on (e.g., "Mixer_0") or "all"
+     */
+    focusOnMixer(mixerName) {
+        if (!this.isInitialized || this.modelId !== 'factory') return false;
+
+        if (mixerName === 'all') {
+            // Reset camera to overview position
+            this.camera.position.set(35, 30, 100);
+            this.controls.target.set(35, 0, 75);
+            this.controls.update();
+            return true;
+        }
+
+        // Find the selected mixer
+        const mixer = this.mixerModels.find(m => m.name === mixerName);
+        if (mixer) {
+            const pos = mixer.model.position;
+
+            // Move camera to focus on this mixer
+            this.camera.position.set(pos.x, pos.y + 5, pos.z + 10);
+            this.controls.target.set(pos.x, pos.y, pos.z);
+            this.controls.update();
+
+            this.selectedMixer = mixer;
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Focus the camera on a specific component in the factory
+     * @param {string} componentId - ID of the component to focus on (e.g., "WaterTank")
+     */
+    focusOnComponent(componentId) {
+        // Use the common implementation from VisualizationComponents
+        return VisualizationComponents.focusOnComponent(this, componentId);
+    }
+
+    /**
+     * Get component object by ID - required for common focusOnComponent implementation
+     * @param {string} componentId - ID of the component to get
+     * @returns {Object|null} - The component object or null if not found
+     */
+    getComponentObject(componentId) {
+        // Find the component based on its ID
+        switch(componentId) {
+            case 'WaterTank':
+                return this.components.waterTank.object3D;
+            
+            case 'FreezerTunnel':
+                return this.components.freezerTunnel.object3D;
+            
+            case 'PlasticLiner':
+                return this.components.plasticLiner.object3D;
+            
+            case 'CookieFormer':
+                return this.components.cookieFormer.object3D;
+            
+            case 'BoxSealer':
+                return this.components.boxSealer.object3D;
+            
+            case 'ConveyorSystem':
+                // Find a conveyor to focus on
+                const conveyorIds = Object.keys(this.conveyors);
+                if (conveyorIds.length > 0) {
+                    return this.conveyors[conveyorIds[0]];
+                }
+                return null;
+            
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Apply camera focus on a specific component - required for common focusOnComponent
+     * @param {Object} targetObject - Object to focus on
+     * @param {Object} cameraParams - Camera parameters from VisualizationComponents
+     */
+    applyComponentFocus(targetObject, cameraParams) {
+        // Get world position of the object
+        const pos = new THREE.Vector3();
+        targetObject.getWorldPosition(pos);
+
+        // Use the camera offset from the common parameters
+        this.camera.position.set(
+            pos.x + cameraParams.offset.camera[0],
+            pos.y + cameraParams.offset.camera[1],
+            pos.z + cameraParams.offset.camera[2]
+        );
+        
+        // Look at the object position
+        this.controls.target.set(
+            pos.x + cameraParams.offset.target[0], 
+            pos.y + cameraParams.offset.target[1], 
+            pos.z + cameraParams.offset.target[2]
+        );
+        
+        this.controls.update();
+    }
+
+    /**
      * Toggle tag visibility
      * @param {boolean} visible - Whether tags should be visible
      */
     toggleTags(visible) {
-        this.showTags = visible !== undefined ? visible : !this.showTags;
-        this.tagManager.toggleTags(this.showTags);
+        // Use the common implementation from VisualizationComponents
+        VisualizationComponents.toggleTags(this, visible);
     }
 
     /**
@@ -1057,19 +974,10 @@ class ThreeJSVisualizer {
      * @param {boolean} keepContainer - Whether to keep the container intact (for model changes)
      */
     cleanup(keepContainer = false) {
-        // Clear tag management
-        if (this.tagManager) {
-            this.tagManager.cleanup();
-            this.tagManager = null;
-        }
+        // Use the common cleanup pattern from VisualizationComponents
+        VisualizationComponents.cleanupPattern(this, keepContainer);
         
-        this.tagObjects = {};
-        
-        // Reset texture offsets
-        this.textureOffsets = {};
-
-        this.isInitialized = false;
-
+        // Three.js specific cleanup
         if (this.animationFrame) {
             cancelAnimationFrame(this.animationFrame);
             this.animationFrame = null;
@@ -1083,22 +991,6 @@ class ThreeJSVisualizer {
                 this.scene.remove(obj);
             }
         }
-
-        // Reset references to models
-        this.modelObject = null;
-        this.rotatingPart = null;
-        this.factoryScene = null;
-        this.mixerModels = [];
-        this.factoryEnvironment = null;
-        this.components.waterTank.object3D = null;
-        this.cookieLines = [];
-        this.selectedMixer = null;
-        this.statusIndicator = null;
-        this.components.freezerTunnel.object3D = null;
-        this.components.plasticLiner.object3D = null;
-        this.components.cookieFormer.object3D = null;
-        this.components.boxSealer.object3D = null;
-        this.conveyors = {};
 
         if (!keepContainer) {
             if (this.renderer) {

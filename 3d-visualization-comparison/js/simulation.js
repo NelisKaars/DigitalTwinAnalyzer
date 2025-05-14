@@ -11,9 +11,9 @@ const Simulation = {
         pauseStartTime: 0,             // When pause started
         totalPauseTime: 0,             // Total time spent in pause
         elapsedTime: 0,                // Total elapsed time
-        duration: 90,                  // Total duration in seconds
+        duration: 90,                  // Fixed duration in seconds (90 seconds = 1:30)
         cameraPathDuration: 95,        // Time to complete full camera path in seconds
-        dataUpdateInterval: 2000,      // How often to update digital twin data (ms)
+        dataUpdateInterval: 100,       // Fixed data update interval (in milliseconds)
         lastDataUpdate: 0,             // Timestamp of last data update
         waypointIndex: 0,              // Current waypoint index
         waypointProgress: 0,           // Progress between waypoints (0-1)
@@ -456,8 +456,6 @@ const Simulation = {
     _updateDigitalTwinData() {
         const time = this.config.elapsedTime;
         
-        console.log(`Updating data at time: ${time.toFixed(2)}s, checking ${this.updatePatterns.scheduledEvents.length} scheduled events`);
-        
         // Track if any updates were made
         let updatesPerformed = false;
         
@@ -627,11 +625,7 @@ const Simulation = {
         for (const component in defaultValues) {
             for (const property in defaultValues[component]) {
                 const value = defaultValues[component][property];
-                updatePromises.push(
-                    DittoAPI.updateProperty(component, property, value)
-                        .then(() => console.log(`Reset ${component}.${property} = ${value}`))
-                        .catch(err => console.error(`Error resetting ${component}.${property}: ${err}`))
-                );
+                updatePromises.push(DittoAPI.updateProperty(component, property, value));
             }
         }
         

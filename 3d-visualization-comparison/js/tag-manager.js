@@ -669,6 +669,24 @@ class TagManager {
         
         return createdTags;
     }
+
+    /**
+     * Get standard tag ID for a component type
+     * @param {string} componentType - Type of component (e.g., waterTank)
+     * @returns {string} Tag ID
+     */
+    getTagIdFromComponentType(componentType) {
+        const mapping = {
+            waterTank: 'WaterTank',
+            freezerTunnel: 'FreezerTunnel',
+            plasticLiner: 'PlasticLiner',
+            cookieFormer: 'CookieFormer',
+            boxSealer: 'BoxSealer',
+            conveyorSystem: 'ConveyorSystem'
+        };
+        
+        return mapping[componentType] || null;
+    }
 }
 
 // Export the TagManager class for use in other modules

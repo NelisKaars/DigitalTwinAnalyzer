@@ -22,6 +22,7 @@ class PlayCanvasVisualizer {
         this.cameraEntity = null;
         this.container = null;
         this.canvas = null;
+        this.cameraControls = null;  // New variable for the camera controller
 
         // Digital twin model components
         this.modelId = null;
@@ -63,34 +64,6 @@ class PlayCanvasVisualizer {
         
         // Performance tracking
         this.lastUpdateTime = 0;
-        
-        // Camera control variables
-        this.cameraOrbit = {
-            distance: 200,
-            yaw: 0,
-            pitch: 0.5,
-            targetPosition: new pc.Vec3(35, 0, 75),
-            minPitch: -0.5,
-            maxPitch: 0.9,
-            minDistance: 5,
-            maxDistance: 500,
-            damping: 0.05
-        };
-        
-        // Input tracking for mouse/touch interaction
-        this.input = {
-            mouse: {
-                isDown: false,
-                lastX: 0,
-                lastY: 0,
-                isPanning: false
-            },
-            touch: {
-                isDown: false,
-                lastX: 0,
-                lastY: 0
-            }
-        };
     }
 
     /**
@@ -152,24 +125,12 @@ class PlayCanvasVisualizer {
         
         // Initialize camera position
         this.cameraEntity.setPosition(35, 30, 100);
-        this.updateCameraTransform();
         
         // Add camera to scene
         this.app.root.addChild(this.cameraEntity);
         
-        // Setup mouse and touch input for camera control
-        const mouse = this.app.mouse;
-        const touch = this.app.touch;
-        
-        mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
-        mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
-        mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
-        mouse.on(pc.EVENT_MOUSEWHEEL, this.onMouseWheel, this);
-        
-        touch.on(pc.EVENT_TOUCHSTART, this.onTouchStart, this);
-        touch.on(pc.EVENT_TOUCHMOVE, this.onTouchMove, this);
-        touch.on(pc.EVENT_TOUCHEND, this.onTouchEnd, this);
-        touch.on(pc.EVENT_TOUCHCANCEL, this.onTouchEnd, this);
+        // Initialize camera controls
+        this.cameraControls = new PlayCanvasCameraControls(this.app, this.cameraEntity);
 
         // Initialize the tag manager
         this.tagManager = new TagManager(this.container);
@@ -186,207 +147,6 @@ class PlayCanvasVisualizer {
         // Start update loop
         this.isInitialized = true;
         this.app.on('update', this.update.bind(this));
-    }
-    
-    /**
-     * Update camera position and rotation based on orbit parameters
-     */
-    updateCameraTransform() {
-        // Calculate camera position based on spherical coordinates
-        const orbit = this.cameraOrbit;
-        const sinYaw = Math.sin(orbit.yaw);
-        const cosYaw = Math.cos(orbit.yaw);
-        const sinPitch = Math.sin(orbit.pitch);
-        const cosPitch = Math.cos(orbit.pitch);
-        
-        // Calculate camera position in spherical coordinates
-        const x = orbit.targetPosition.x + orbit.distance * cosPitch * sinYaw;
-        const y = orbit.targetPosition.y + orbit.distance * sinPitch;
-        const z = orbit.targetPosition.z + orbit.distance * cosPitch * cosYaw;
-        
-        // Set camera position
-        this.cameraEntity.setPosition(x, y, z);
-        
-        // Make camera look at target position
-        this.cameraEntity.lookAt(orbit.targetPosition);
-    }
-    
-    /**
-     * Handler for mouse down events
-     * @param {Object} event - Mouse event
-     */
-    onMouseDown(event) {
-        // Left mouse button (for rotation)
-        if (event.button === 0) {
-            this.input.mouse.isDown = true;
-            this.input.mouse.lastX = event.x;
-            this.input.mouse.lastY = event.y;
-            
-            // Prevent default to avoid text selection
-            event.event.preventDefault();
-        }
-        // Middle mouse button (for panning)
-        else if (event.button === 2) {
-            this.input.mouse.isPanning = true;
-            this.input.mouse.lastX = event.x;
-            this.input.mouse.lastY = event.y;
-            
-            event.event.preventDefault();
-        }
-    }
-    
-    /**
-     * Handler for mouse move events
-     * @param {Object} event - Mouse event
-     */
-    onMouseMove(event) {
-        // Handle rotation with left mouse button
-        if (this.input.mouse.isDown) {
-            // Calculate mouse movement deltas
-            const dx = event.x - this.input.mouse.lastX;
-            const dy = event.y - this.input.mouse.lastY;
-            this.input.mouse.lastX = event.x;
-            this.input.mouse.lastY = event.y;
-            
-            // Rotate camera based on mouse movement
-            this.cameraOrbit.yaw -= dx * 0.003;
-            this.cameraOrbit.pitch += dy * 0.003;
-            
-            // Clamp pitch to avoid camera flipping
-            this.cameraOrbit.pitch = Math.max(this.cameraOrbit.minPitch, 
-                                              Math.min(this.cameraOrbit.pitch, this.cameraOrbit.maxPitch));
-            
-            // Update camera position
-            this.updateCameraTransform();
-            
-            // Prevent default to avoid text selection
-            event.event.preventDefault();
-        }
-        // Handle panning with right mouse button
-        else if (this.input.mouse.isPanning) {
-            // Calculate mouse movement deltas
-            const dx = event.x - this.input.mouse.lastX;
-            const dy = event.y - this.input.mouse.lastY;
-            this.input.mouse.lastX = event.x;
-            this.input.mouse.lastY = event.y;
-            
-            // Get camera right and up vectors
-            const right = this.cameraEntity.right;
-            const up = this.cameraEntity.up;
-            
-            // Scale movement speed based on distance (faster when zoomed out)
-            const panSpeed = this.cameraOrbit.distance * 0.005;
-            
-            // Calculate the pan amount in world space
-            const panX = right.x * dx * panSpeed;
-            const panY = up.y * dy * panSpeed;
-            const panZ = right.z * dx * panSpeed + up.z * dy * panSpeed;
-            
-            // Update the target position
-            this.cameraOrbit.targetPosition.x -= panX;
-            this.cameraOrbit.targetPosition.y -= panY;
-            this.cameraOrbit.targetPosition.z -= panZ;
-            
-            // Update camera position
-            this.updateCameraTransform();
-            
-            event.event.preventDefault();
-        }
-    }
-    
-    /**
-     * Handler for mouse up events
-     * @param {Object} event - Mouse event
-     */
-    onMouseUp(event) {
-        // Left mouse button (rotation)
-        if (event.button === 0) {
-            this.input.mouse.isDown = false;
-        }
-        // Right mouse button (panning)
-        else if (event.button === 2) {
-            this.input.mouse.isPanning = false;
-        }
-    }
-    
-    /**
-     * Handler for mouse wheel events
-     * @param {Object} event - Mouse wheel event
-     */
-    onMouseWheel(event) {
-        // Adjust camera distance based on wheel delta
-        const wheelDelta = event.wheelDelta;
-        this.cameraOrbit.distance += wheelDelta * 5;
-        
-        // Clamp distance
-        this.cameraOrbit.distance = Math.max(this.cameraOrbit.minDistance, 
-                                           Math.min(this.cameraOrbit.distance, this.cameraOrbit.maxDistance));
-        
-        // Update camera position
-        this.updateCameraTransform();
-    }
-    
-    /**
-     * Handler for touch start events
-     * @param {Object} event - Touch event
-     */
-    onTouchStart(event) {
-        // Single touch for rotation
-        if (event.touches.length === 1) {
-            const touch = event.touches[0];
-            this.input.touch.isDown = true;
-            this.input.touch.lastX = touch.x;
-            this.input.touch.lastY = touch.y;
-            
-            // Prevent default to avoid scrolling
-            event.event.preventDefault();
-        }
-    }
-    
-    /**
-     * Handler for touch move events
-     * @param {Object} event - Touch event
-     */
-    onTouchMove(event) {
-        // Single touch for rotation
-        if (event.touches.length === 1 && this.input.touch.isDown) {
-            const touch = event.touches[0];
-            
-            // Calculate touch movement deltas
-            const dx = touch.x - this.input.touch.lastX;
-            const dy = touch.y - this.input.touch.lastY;
-            this.input.touch.lastX = touch.x;
-            this.input.touch.lastY = touch.y;
-            
-            // Rotate camera based on touch movement
-            this.cameraOrbit.yaw += dx * 0.003;
-            this.cameraOrbit.pitch -= dy * 0.003;
-            
-            // Clamp pitch to avoid camera flipping
-            this.cameraOrbit.pitch = Math.max(this.cameraOrbit.minPitch, 
-                                              Math.min(this.cameraOrbit.pitch, this.cameraOrbit.maxPitch));
-            
-            // Update camera position
-            this.updateCameraTransform();
-            
-            // Prevent default to avoid scrolling
-            event.event.preventDefault();
-        }
-        
-        // Two-finger pinch for zooming
-        else if (event.touches.length === 2) {
-            // Implementation for pinch zoom would go here
-            // This would calculate the distance between two touches
-            // and adjust camera distance accordingly
-        }
-    }
-    
-    /**
-     * Handler for touch end events
-     * @param {Object} event - Touch event
-     */
-    onTouchEnd(event) {
-        this.input.touch.isDown = false;
     }
 
     /**
@@ -569,7 +329,15 @@ class PlayCanvasVisualizer {
 
         entity.children.forEach(child => {
             const name = child.name.toLowerCase();
-            if (name.includes('bowl') || name.includes('main_mixer')) {
+            // Enhanced identification to include more potential mixer parts
+            if (name.includes('bowl') || 
+                name.includes('main_mixer') || 
+                name.includes('blade') || 
+                name.includes('paddle') ||
+                name.includes('stirrer') ||
+                name.includes('arm') ||
+                name.includes('hand') ||
+                name.includes('mixer')) {
                 child.isRotatingPart = true;
             }
             // Recursively check children
@@ -785,7 +553,6 @@ class PlayCanvasVisualizer {
      */
     createFloatingTags() {
         // Get positions from our indicators to use for tags
-        // By now, the position indicators should be created and we can use their positions
         
         // Create tag mapping objects that will be passed to TagManager
         const mixerTags = this.mixerModels.map((mixer, index) => {
@@ -858,7 +625,7 @@ class PlayCanvasVisualizer {
         
         // Store other component references
         Object.entries(otherTags).forEach(([key, value]) => {
-            const tagId = this.getComponentTagId(key);
+            const tagId = this.tagManager.getTagIdFromComponentType(key);
             if (tagId && value.object3D) {
                 this.tagObjects[tagId] = {
                     object3D: value.object3D,
@@ -887,120 +654,6 @@ class PlayCanvasVisualizer {
     }
     
     /**
-     * Get standard tag ID for a component type
-     * @param {string} componentType - Type of component (e.g., waterTank)
-     * @returns {string} Tag ID
-     */
-    getComponentTagId(componentType) {
-        const mapping = {
-            waterTank: 'WaterTank',
-            freezerTunnel: 'FreezerTunnel',
-            plasticLiner: 'PlasticLiner',
-            cookieFormer: 'CookieFormer',
-            boxSealer: 'BoxSealer',
-            conveyorSystem: 'ConveyorSystem'
-        };
-        
-        return mapping[componentType] || null;
-    }
-
-    /**
-     * Helper method to create a tag for a component - PlayCanvas specific implementation
-     * that uses the common TagManager
-     * @param {string} id - Tag ID
-     * @param {pc.Entity} object - Object to attach tag to
-     * @param {Object} options - Tag options
-     */
-    createComponentTag(id, object, options) {
-        // Use the common TagManager to create the tag
-        this.tagManager.createTag(id, options.content, id);
-        
-        // Store reference to 3D object for positioning
-        const position = options.position || [0, 3, 0];
-        this.tagObjects[id] = {
-            object3D: object,
-            offset: new pc.Vec3(position[0], position[1], position[2])
-        };
-    }
-
-    /**
-     * Update floating tag positions based on 3D positions
-     */
-    updateTagPositions() {
-        if (!this.camera || !this.tagManager || !this.showTags) return;
-
-        // Update all tag positions using the position indicators
-        Object.keys(this.tagObjects).forEach(tagId => {
-            const tagObject = this.tagObjects[tagId];
-            if (!tagObject || !tagObject.object3D) return;
-            
-            // Calculate tag position in world space
-            let worldPos;
-            
-            // First check if there's a matching indicator
-            const indicatorName = this.getMatchingIndicatorName(tagId);
-            if (indicatorName && this.positionIndicators && this.positionIndicators[indicatorName]) {
-                // Use the position indicator's position for perfect tag placement
-                worldPos = new pc.Vec3();
-                this.positionIndicators[indicatorName].getWorldTransform().getTranslation(worldPos);
-            } 
-            // Fallback to direct worldPosition if available
-            else if (tagObject.worldPosition) {
-                worldPos = tagObject.worldPosition.clone();
-            } 
-            // Last resort: calculate from object + offset
-            else {
-                worldPos = this.getWorldPosition(tagObject.object3D);
-                if (tagObject.offset) {
-                    worldPos.add(tagObject.offset);
-                }
-            }
-            
-            // Project 3D position to 2D screen space
-            const screenPos = this.camera.worldToScreen(worldPos);
-            
-            // If position is null, object is behind camera or outside frustum
-            if (screenPos === null) {
-                this.tagManager.updateTagPosition(tagId, 0, 0, false, 1000);
-                return;
-            }
-            
-            // Calculate if object is in front of camera
-            const cameraPos = this.cameraEntity.getPosition();
-            const cameraForward = this.cameraEntity.forward;
-            const objectDir = new pc.Vec3().sub2(worldPos, cameraPos).normalize();
-            const inFront = objectDir.dot(cameraForward) > 0;
-            
-            // Calculate distance to camera (for depth sorting)
-            const distance = worldPos.distance(cameraPos);
-            
-            // Get container dimensions
-            const containerRect = this.container.getBoundingClientRect();
-            
-            // Check if tag is within viewport bounds
-            const padding = 10; // px padding from edges
-            const inBounds = (
-                screenPos.x >= padding && 
-                screenPos.x <= (containerRect.width - padding) &&
-                screenPos.y >= padding && 
-                screenPos.y <= (containerRect.height - padding)
-            );
-            
-            // Only display if in front of camera, in bounds, and tags are enabled
-            const shouldDisplay = inFront && inBounds && this.showTags;
-            
-            // Update tag position in the DOM
-            this.tagManager.updateTagPosition(
-                tagId,
-                screenPos.x, 
-                screenPos.y,
-                shouldDisplay,
-                distance
-            );
-        });
-    }
-    
-    /**
      * Get matching indicator name for a tag ID
      * @param {string} tagId - The tag ID to get indicator for
      * @returns {string|null} - The indicator name or null if no match found
@@ -1023,89 +676,6 @@ class PlayCanvasVisualizer {
         };
         
         return mapping[tagId] || null;
-    }
-
-    /**
-     * Get viewport position for a tag - PlayCanvas specific implementation
-     * @param {Object} tagObject - Tag object data
-     * @returns {Object} - Position object with x, y, z and computed screen coordinates
-     */
-    getTagViewportPosition(tagObject) {
-        const containerRect = this.container.getBoundingClientRect();
-        
-        // Use the world position directly from the indicator if available
-        let worldPosition;
-        if (tagObject.worldPosition) {
-            worldPosition = tagObject.worldPosition.clone();
-        } else {
-            // Fall back to entity position if world position not available
-            worldPosition = this.getWorldPosition(tagObject.object3D);
-        }
-
-        // Calculate distance to camera
-        const cameraPos = this.cameraEntity.getPosition();
-        const distance = worldPosition.distance(cameraPos);
-
-        // Project 3D position to 2D screen space using PlayCanvas camera
-        // Convert point from 3D world space to normalized device coordinates (NDC)
-        const camera = this.camera;
-        
-        // Create vector objects to avoid allocations
-        const viewPos = new pc.Vec3();
-        const projPos = new pc.Vec3();
-        
-        // Create view matrix from camera
-        const viewMatrix = new pc.Mat4().copy(camera.viewMatrix);
-        const projMatrix = new pc.Mat4().copy(camera.projectionMatrix);
-        
-        // Transform point to camera space
-        viewMatrix.transformPoint(worldPosition, viewPos);
-        
-        // Determine if point is in front of camera
-        const inFront = viewPos.z < 0;
-        
-        // Transform from camera space to clip space
-        projPos.x = (projMatrix.data[0] * viewPos.x + projMatrix.data[4] * viewPos.y + projMatrix.data[8] * viewPos.z + projMatrix.data[12]);
-        projPos.y = (projMatrix.data[1] * viewPos.x + projMatrix.data[5] * viewPos.y + projMatrix.data[9] * viewPos.z + projMatrix.data[13]);
-        projPos.z = (projMatrix.data[2] * viewPos.x + projMatrix.data[6] * viewPos.y + projMatrix.data[10] * viewPos.z + projMatrix.data[14]);
-        const projW = (projMatrix.data[3] * viewPos.x + projMatrix.data[7] * viewPos.y + projMatrix.data[11] * viewPos.z + projMatrix.data[15]);
-        
-        // Early return if behind camera or at the camera position
-        if (projW <= 0) {
-            return {
-                x: 0,
-                y: 0,
-                z: 0,
-                distance: distance,
-                inFront: false,
-                inBounds: false
-            };
-        }
-        
-        // Convert to NDC by dividing by w
-        projPos.x /= projW;
-        projPos.y /= projW;
-        projPos.z /= projW;
-        
-        // Convert to screen coordinates (0-1) by remapping from -1...1 to 0...1
-        const screenX = ((projPos.x + 1.0) * 0.5) * containerRect.width;
-        const screenY = ((1.0 - (projPos.y + 1.0) * 0.5)) * containerRect.height;
-        
-        // Check if within viewport bounds with padding
-        const padding = 20; // pixels
-        const inBounds = (
-            screenX >= padding && screenX <= (containerRect.width - padding) &&
-            screenY >= padding && screenY <= (containerRect.height - padding)
-        );
-
-        return {
-            x: screenX,
-            y: screenY,
-            z: projPos.z,
-            distance: distance,
-            inFront: inFront,
-            inBounds: inBounds
-        };
     }
 
     /**
@@ -1310,55 +880,8 @@ class PlayCanvasVisualizer {
      * @param {Object} twinState - Digital twin state data
      */
     updateFromTwin(twinState) {
-        // Process the twin data using the common DTDataProcessor
-        const processedData = DTDataProcessor.processTwinData(twinState, {
-            selectedMixer: window.dashboardState?.selectedMixer || 'all'
-        });
-        
-        if (!processedData) return;
-        
-        // Update mixers
-        Object.entries(processedData.mixers).forEach(([mixerKey, mixerData]) => {
-            // Find the mixer model
-            const mixer = this.mixerModels.find(m => m.name === mixerKey);
-            if (mixer) {
-                // Store data in the mixer model for animation
-                mixer.data = mixer.data || {};
-                mixer.data.temperature = mixerData.temperature;
-                mixer.data.rpm = mixerData.rpm;
-                mixer.data.status = mixerData.status;
-                
-                // Update the global state if this is the selected mixer
-                if (processedData.selectedMixer === mixerKey || processedData.selectedMixer === 'all') {
-                    this.components.mixers.temperature = mixerData.temperature;
-                    this.components.mixers.rpm = mixerData.rpm;
-                    this.components.mixers.status = mixerData.status;
-                }
-            }
-        });
-        
-        // Update other components
-        // The pattern is the same as in Three.js implementation
-        this.components.waterTank.flowRate = processedData.waterTank.flowRate;
-        this.components.waterTank.tankVolume = processedData.waterTank.tankVolume;
-        this.components.waterTank.status = processedData.waterTank.status;
-        
-        this.components.freezerTunnel.temperature = processedData.freezerTunnel.temperature;
-        this.components.freezerTunnel.speed = processedData.freezerTunnel.speed;
-        this.components.freezerTunnel.status = processedData.freezerTunnel.status;
-        
-        this.components.plasticLiner.rpm = processedData.plasticLiner.rpm;
-        this.components.plasticLiner.status = processedData.plasticLiner.status;
-        
-        this.components.cookieFormer.rate = processedData.cookieFormer.rate;
-        this.components.cookieFormer.goodParts = processedData.cookieFormer.goodParts;
-        this.components.cookieFormer.status = processedData.cookieFormer.status;
-        
-        this.components.boxSealer.speed = processedData.boxSealer.speed;
-        this.components.boxSealer.status = processedData.boxSealer.status;
-        
-        this.components.conveyorSystem.speed = processedData.conveyorSystem.speed;
-        this.components.conveyorSystem.status = processedData.conveyorSystem.status;
+        // Use the common implementation from VisualizationComponents
+        VisualizationComponents.updateFromTwin(this, twinState);
     }
 
     /**
@@ -1366,15 +889,12 @@ class PlayCanvasVisualizer {
      * @param {string} mixerName - Name of the mixer to focus on (e.g., "Mixer_0") or "all"
      */
     focusOnMixer(mixerName) {
-        if (!this.isInitialized || this.modelId !== 'factory') return;
+        if (!this.isInitialized || this.modelId !== 'factory' || !this.cameraControls) return;
 
         if (mixerName === 'all') {
             // Reset camera to overview position
-            this.cameraOrbit.targetPosition = new pc.Vec3(35, 0, 75);
-            this.cameraOrbit.distance = 100;
-            this.cameraOrbit.yaw = 0;
-            this.cameraOrbit.pitch = 0.5;
-            this.updateCameraTransform();
+            const targetPosition = new pc.Vec3(35, 0, 75);
+            this.cameraControls.focusOn(targetPosition, 100, 0, 0.5);
             return;
         }
 
@@ -1396,9 +916,7 @@ class PlayCanvasVisualizer {
             }
 
             // Move camera to focus on this mixer
-            this.cameraOrbit.targetPosition = worldPos;
-            this.cameraOrbit.distance = 15;
-            this.updateCameraTransform();
+            this.cameraControls.focusOn(worldPos, 15);
             this.selectedMixer = mixer;
         }
     }
@@ -1408,105 +926,85 @@ class PlayCanvasVisualizer {
      * @param {string} componentId - ID of the component to focus on (e.g., "WaterTank")
      */
     focusOnComponent(componentId) {
-        if (!this.isInitialized || this.modelId !== 'factory') return;
+        // Use the common implementation from VisualizationComponents
+        return VisualizationComponents.focusOnComponent(this, componentId);
+    }
 
-        // For mixers, use existing focusOnMixer method
-        if (componentId.startsWith('Mixer_')) {
-            this.focusOnMixer(componentId);
-            return;
-        }
-
-        // Get common camera focus parameters
-        const cameraParams = VisualizationComponents.getComponentCameraFocus(componentId);
-        
-        // If no parameters found, fallback to default
-        if (!cameraParams) {
-            console.warn(`No camera parameters found for component: ${componentId}`);
-            return;
-        }
-
-        let targetObject = null;
-
+    /**
+     * Get component object by ID - required for common focusOnComponent implementation
+     * @param {string} componentId - ID of the component to get
+     * @returns {Object|null} - The component object or null if not found
+     */
+    getComponentObject(componentId) {
         // Find the component based on its ID
         switch(componentId) {
             case 'WaterTank':
-                targetObject = this.components.waterTank.object3D;
-                break;
+                return this.components.waterTank.object3D;
             
             case 'FreezerTunnel':
-                targetObject = this.components.freezerTunnel.object3D;
-                break;
+                return this.components.freezerTunnel.object3D;
             
             case 'PlasticLiner':
-                targetObject = this.components.plasticLiner.object3D;
-                break;
+                return this.components.plasticLiner.object3D;
             
             case 'CookieFormer':
-                targetObject = this.components.cookieFormer.object3D;
-                break;
+                return this.components.cookieFormer.object3D;
             
             case 'BoxSealer':
-                targetObject = this.components.boxSealer.object3D;
-                break;
+                return this.components.boxSealer.object3D;
             
             case 'ConveyorSystem':
                 // Find a conveyor to focus on
                 const conveyorIds = Object.keys(this.conveyors);
                 if (conveyorIds.length > 0) {
-                    targetObject = this.conveyors[conveyorIds[0]];
+                    return this.conveyors[conveyorIds[0]];
                 }
-                break;
+                return null;
             
             default:
-                // Default to overview position if component not found
-                this.cameraOrbit.targetPosition = new pc.Vec3(
-                    cameraParams.default.target[0], 
-                    cameraParams.default.target[1], 
-                    cameraParams.default.target[2]
-                );
-                this.cameraOrbit.distance = 100;
-                this.updateCameraTransform();
-                return;
+                return null;
         }
+    }
+
+    /**
+     * Apply camera focus on a specific component - required for common focusOnComponent
+     * @param {Object} targetObject - Object to focus on
+     * @param {Object} cameraParams - Camera parameters from VisualizationComponents
+     */
+    applyComponentFocus(targetObject, cameraParams) {
+        if (!this.cameraControls) return false;
+        
+        let worldPos;
 
         // Check if we have a matching position indicator which is more accurate
-        const indicatorName = this.getMatchingIndicatorName(componentId);
-        
-        if (targetObject) {
-            let worldPos;
-
-            // First try to use position indicator if available (most accurate)
+        if (cameraParams.componentId) {
+            const indicatorName = this.getMatchingIndicatorName(cameraParams.componentId);
+            
             if (indicatorName && this.positionIndicators && this.positionIndicators[indicatorName]) {
                 worldPos = new pc.Vec3();
                 this.positionIndicators[indicatorName].getWorldTransform().getTranslation(worldPos);
-            } 
-            // Otherwise get the world position directly from the target object
-            else {
-                worldPos = this.getWorldPosition(targetObject);
             }
-
-            // Set camera target to object position with offset
-            this.cameraOrbit.targetPosition = new pc.Vec3(
-                worldPos.x + (cameraParams.offset?.target?.[0] || 0),
-                worldPos.y + (cameraParams.offset?.target?.[1] || 0), 
-                worldPos.z + (cameraParams.offset?.target?.[2] || 0)
-            );
-            
-            // Set appropriate distance for this component
-            this.cameraOrbit.distance = cameraParams.distance || 20;
-            
-            // Update camera transform based on new target and distance
-            this.updateCameraTransform();
-        } else {
-            // Fallback to overview position
-            this.cameraOrbit.targetPosition = new pc.Vec3(
-                cameraParams.default.target[0], 
-                cameraParams.default.target[1], 
-                cameraParams.default.target[2]
-            );
-            this.cameraOrbit.distance = 100;
-            this.updateCameraTransform();
         }
+
+        // If we didn't get a position from an indicator, use the object's position
+        if (!worldPos) {
+            worldPos = this.getWorldPosition(targetObject);
+        }
+            
+        // Create target position with offset if provided
+        const targetPosition = new pc.Vec3(
+            worldPos.x + (cameraParams.offset?.target?.[0] || 0),
+            worldPos.y + (cameraParams.offset?.target?.[1] || 0), 
+            worldPos.z + (cameraParams.offset?.target?.[2] || 0)
+        );
+            
+        // Use appropriate distance for this component
+        const distance = cameraParams.distance || 20;
+            
+        // Update camera using the camera controller
+        this.cameraControls.focusOn(targetPosition, distance);
+        
+        return true;
     }
 
     /**
@@ -1516,23 +1014,10 @@ class PlayCanvasVisualizer {
      * @param {Array} up - [x, y, z] up vector
      */
     setCameraPosition(position, target, up) {
-        if (!this.cameraEntity) return;
+        if (!this.cameraControls) return;
         
-        // Calculate distance between position and target
-        const targetVec = new pc.Vec3(target[0], target[1], target[2]);
-        const posVec = new pc.Vec3(position[0], position[1], position[2]);
-        const distance = posVec.distance(targetVec);
-        
-        // Update orbit parameters
-        this.cameraOrbit.targetPosition = targetVec;
-        this.cameraOrbit.distance = distance;
-        
-        // Set the camera's position and look at target
-        this.cameraEntity.setPosition(position[0], position[1], position[2]);
-        this.cameraEntity.lookAt(target[0], target[1], target[2]);
-        
-        // We can't directly set the up vector, but we can use setLocalEulerAngles if needed
-        // or just use the default camera orientation which should be sufficient in most cases
+        // Delegate to camera controller
+        this.cameraControls.setCameraPosition(position, target);
     }
 
     /**
@@ -1540,8 +1025,8 @@ class PlayCanvasVisualizer {
      * @param {boolean} visible - Whether tags should be visible
      */
     toggleTags(visible) {
-        this.showTags = visible !== undefined ? visible : !this.showTags;
-        this.tagManager.toggleTags(this.showTags);
+        // Use the common implementation from VisualizationComponents
+        VisualizationComponents.toggleTags(this, visible);
     }
 
     /**
@@ -1549,32 +1034,16 @@ class PlayCanvasVisualizer {
      * @param {boolean} keepContainer - Whether to keep the container intact (for model changes)
      */
     cleanup(keepContainer = false) {
-        // Clear tag management
-        if (this.tagManager) {
-            this.tagManager.cleanup();
-            this.tagManager = null;
+        // Clean up camera controls
+        if (this.cameraControls) {
+            this.cameraControls.cleanup();
+            this.cameraControls = null;
         }
         
-        this.tagObjects = {};
-        this.textureOffsets = {};
-        this.isInitialized = false;
-
-        // Reset references to models
-        this.modelObject = null;
-        this.rotatingPart = null;
-        this.factoryScene = null;
-        this.mixerModels = [];
-        this.factoryEnvironment = null;
-        this.components.waterTank.object3D = null;
-        this.cookieLines = [];
-        this.selectedMixer = null;
-        this.statusIndicator = null;
-        this.components.freezerTunnel.object3D = null;
-        this.components.plasticLiner.object3D = null;
-        this.components.cookieFormer.object3D = null;
-        this.components.boxSealer.object3D = null;
-        this.conveyors = {};
-
+        // Use the common cleanup pattern from VisualizationComponents
+        VisualizationComponents.cleanupPattern(this, keepContainer);
+        
+        // PlayCanvas specific cleanup
         if (!keepContainer) {
             if (this.app) {
                 // Stop the PlayCanvas application
@@ -1592,137 +1061,128 @@ class PlayCanvasVisualizer {
 
     /**
      * Create position indicators on each component to help with tag positioning
-     * These are invisible entities to store reference points for tag positioning
+     * These are invisible entities that provide consistent positioning for tags
      */
     createPositionIndicators() {
-        // Create empty containers to store position references
+        // Create empty container to store position references
         this.positionIndicators = {};
         
-        // Add indicator for water tank
-        if (this.components.waterTank.object3D) {
-            this.addPositionIndicator(this.components.waterTank.object3D, "waterTankIndicator", 5);
-        }
+        // Define all indicators in a single configuration
+        const indicators = [
+            { entity: this.components.waterTank.object3D, id: "waterTankIndicator", height: 5 },
+            { entity: this.components.freezerTunnel.object3D, id: "freezerIndicator", height: 3.5 },
+            { entity: this.components.plasticLiner.object3D, id: "linerIndicator", height: 3 },
+            { entity: this.components.cookieFormer.object3D, id: "formerIndicator", height: 4 },
+            { entity: this.components.boxSealer.object3D, id: "sealerIndicator", height: 3 }
+        ];
         
-        // Add indicators for all mixers
+        // Add mixer indicators
         this.mixerModels.forEach((mixer, index) => {
-            this.addPositionIndicator(mixer.model, `mixerIndicator_${index}`, 5);
+            indicators.push({ entity: mixer.model, id: `mixerIndicator_${index}`, height: 5 });
         });
         
-        // Add indicators for production line components
-        if (this.components.freezerTunnel.object3D) {
-            this.addPositionIndicator(this.components.freezerTunnel.object3D, "freezerIndicator", 3.5);
-        }
-        
-        if (this.components.plasticLiner.object3D) {
-            this.addPositionIndicator(this.components.plasticLiner.object3D, "linerIndicator", 3);
-        }
-        
-        if (this.components.cookieFormer.object3D) {
-            this.addPositionIndicator(this.components.cookieFormer.object3D, "formerIndicator", 4);
-        }
-        
-        if (this.components.boxSealer.object3D) {
-            this.addPositionIndicator(this.components.boxSealer.object3D, "sealerIndicator", 3);
-        }
-        
-        // Add indicator for conveyor
+        // Add conveyor indicator if available
         const conveyorIds = Object.keys(this.conveyors);
         if (conveyorIds.length > 0) {
-            this.addPositionIndicator(this.conveyors[conveyorIds[0]], "conveyorIndicator", 2.5);
+            indicators.push({ entity: this.conveyors[conveyorIds[0]], id: "conveyorIndicator", height: 2.5 });
         }
-    }
-    
-    /**
-     * Add a position indicator to help with tag positioning
-     * @param {pc.Entity} entity - The entity to add an indicator to
-     * @param {string} name - Name for the indicator
-     * @param {number} height - Height offset for the indicator
-     */
-    addPositionIndicator(entity, name, height) {
-        if (!entity) return;
         
-        // Create an empty entity for the indicator (no visible model)
-        const indicator = new pc.Entity(name);
-        
-        // Position at the component's position plus height offset
-        indicator.setLocalPosition(0, height, 0);
-        
-        // Add the indicator to the entity
-        entity.addChild(indicator);
-        
-        // Store reference to the indicator
-        if (!this.positionIndicators) {
-            this.positionIndicators = {};
-        }
-        this.positionIndicators[name] = indicator;
+        // Create all indicators
+        indicators.forEach(indicator => {
+            if (indicator.entity) {
+                // Create an empty entity for the indicator (no visible model)
+                const indicatorEntity = new pc.Entity(indicator.id);
+                
+                // Position at the component's position plus height offset
+                indicatorEntity.setLocalPosition(0, indicator.height, 0);
+                
+                // Add the indicator to the entity
+                indicator.entity.addChild(indicatorEntity);
+                
+                // Store reference to the indicator
+                this.positionIndicators[indicator.id] = indicatorEntity;
+            }
+        });
     }
 
     /**
-     * Create tags for cookie line components
+     * Update camera position and rotation based on orbit parameters
+     * Delegates to the camera controller
      */
-    createCookieLineTags() {
-        // Create tag for freezer tunnel
-        if (this.components.freezerTunnel.object3D) {
-            const content = VisualizationComponents.generateTagContent('freezerTunnel', this.components.freezerTunnel);
-            this.tagManager.createTag('FreezerTunnel', content, 'freezerTunnel');
-            
-            // Store reference in tagObjects for positioning
-            this.tagObjects['FreezerTunnel'] = {
-                object3D: this.components.freezerTunnel.object3D,
-                worldPosition: this.getWorldPosition(this.components.freezerTunnel.object3D),
-                offset: new pc.Vec3(0, 3, 0)
-            };
+    updateCameraTransform() {
+        if (this.cameraControls) {
+            this.cameraControls.updateCameraTransform();
+        }
+    }
+
+    /**
+     * Update tag positions for all floating tags
+     */
+    updateTagPositions() {
+        // Use the tag objects to update positions
+        Object.entries(this.tagObjects).forEach(([id, object]) => {
+            if (object && object.object3D) {
+                // Get viewport position for this object
+                const pos = this.getTagViewportPosition(object);
+                
+                // Update tag position using the tag manager
+                if (this.tagManager) {
+                    this.tagManager.updateTagPosition(id, pos.x, pos.y, pos.inFront && pos.inBounds, pos.distance);
+                }
+            }
+        });
+    }
+
+    /**
+     * Calculate viewport position for a tag
+     * @param {Object} object - Tag object with object3D and optional worldPosition
+     * @returns {Object} Object with x, y screen coordinates, inFront flag, inBounds flag, and distance
+     */
+    getTagViewportPosition(object) {
+        const camera = this.cameraEntity.camera;
+        if (!camera || !object) {
+            return { x: 0, y: 0, inFront: false, inBounds: false, distance: Infinity };
         }
         
-        // Create tag for plastic liner
-        if (this.components.plasticLiner.object3D) {
-            const content = VisualizationComponents.generateTagContent('plasticLiner', this.components.plasticLiner);
-            this.tagManager.createTag('PlasticLiner', content, 'plasticLiner');
-            
-            this.tagObjects['PlasticLiner'] = {
-                object3D: this.components.plasticLiner.object3D,
-                worldPosition: this.getWorldPosition(this.components.plasticLiner.object3D),
-                offset: new pc.Vec3(0, 2.5, 0)
-            };
+        // Get the world position of the object
+        let worldPos;
+        
+        // Use pre-calculated world position if provided (from indicators)
+        if (object.worldPosition) {
+            worldPos = object.worldPosition;
+        } else {
+            worldPos = this.getWorldPosition(object.object3D);
         }
         
-        // Create tag for cookie former
-        if (this.components.cookieFormer.object3D) {
-            const content = VisualizationComponents.generateTagContent('cookieFormer', this.components.cookieFormer);
-            this.tagManager.createTag('CookieFormer', content, 'cookieFormer');
-            
-            this.tagObjects['CookieFormer'] = {
-                object3D: this.components.cookieFormer.object3D,
-                worldPosition: this.getWorldPosition(this.components.cookieFormer.object3D),
-                offset: new pc.Vec3(0, 3, 0)
-            };
-        }
+        // Calculate screen position based on world position
+        const tempVec = new pc.Vec3();
+        tempVec.copy(worldPos);
         
-        // Create tag for box sealer
-        if (this.components.boxSealer.object3D) {
-            const content = VisualizationComponents.generateTagContent('boxSealer', this.components.boxSealer);
-            this.tagManager.createTag('BoxSealer', content, 'boxSealer');
-            
-            this.tagObjects['BoxSealer'] = {
-                object3D: this.components.boxSealer.object3D,
-                worldPosition: this.getWorldPosition(this.components.boxSealer.object3D),
-                offset: new pc.Vec3(0, 3, 0)
-            };
-        }
+        // Calculate distance from camera to object
+        const cameraPos = new pc.Vec3();
+        this.cameraEntity.getPosition(cameraPos);
+        const distance = cameraPos.distance(tempVec);
         
-        // Create tag for conveyor system (using first conveyor as reference)
-        if (Object.keys(this.conveyors).length > 0) {
-            const firstConveyorId = Object.keys(this.conveyors)[0];
-            const firstConveyor = this.conveyors[firstConveyorId];
-            
-            const content = VisualizationComponents.generateTagContent('conveyorSystem', this.components.conveyorSystem);
-            this.tagManager.createTag('ConveyorSystem', content, 'conveyorSystem');
-            
-            this.tagObjects['ConveyorSystem'] = {
-                object3D: firstConveyor,
-                worldPosition: this.getWorldPosition(firstConveyor),
-                offset: new pc.Vec3(0, 2, 0)
-            };
-        }
+        // Project 3D position to 2D screen space
+        camera.worldToScreen(tempVec, tempVec);
+        
+        // Check if object is in front of camera
+        const inFront = tempVec.z > 0;
+        
+        // Adjust screen coordinates to account for canvas size
+        const screenX = tempVec.x;
+        const screenY = tempVec.y;
+        
+        // Check if object is within screen bounds
+        const inBounds = screenX >= 0 && screenX <= this.app.graphicsDevice.width &&
+                        screenY >= 0 && screenY <= this.app.graphicsDevice.height;
+        
+        return {
+            x: screenX,
+            y: screenY,
+            inFront: inFront,
+            inBounds: inBounds,
+            distance: distance
+        };
     }
 }
