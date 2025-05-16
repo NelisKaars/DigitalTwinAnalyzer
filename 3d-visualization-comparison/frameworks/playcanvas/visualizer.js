@@ -331,13 +331,7 @@ class PlayCanvasVisualizer {
             const name = child.name.toLowerCase();
             // Enhanced identification to include more potential mixer parts
             if (name.includes('bowl') || 
-                name.includes('main_mixer') || 
-                name.includes('blade') || 
-                name.includes('paddle') ||
-                name.includes('stirrer') ||
-                name.includes('arm') ||
-                name.includes('hand') ||
-                name.includes('mixer')) {
+                name.includes('main_mixer')) {
                 child.isRotatingPart = true;
             }
             // Recursively check children
