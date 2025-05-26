@@ -10,19 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. (Optional) Have the runner check out your repo,
-      #    in case you want to copy scripts or files to the servers.
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Install your deploy key on the runner
       - name: Install SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      # 3. Prevent host‐key prompts
       - name: Add EC2 hosts to known_hosts
         run: |
           mkdir -p ~/.ssh
@@ -30,7 +26,6 @@ jobs:
           ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      # 4. Deploy your Frontend
       - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -38,18 +33,41 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # clone if needed, else pull latest
-            cd /home/ec2-user/app || git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git app
-            cd app && git pull origin main
-            # ensure Podman
-            sudo amazon-linux-extras install -y podman
-            # rebuild & restart container
-            podman stop dashboard || true
-            podman rm dashboard  || true
-            podman build -t dashboard ./frontend
-            podman run -d --name dashboard -p 80:80 dashboard
+            set -e
 
-      # 5. Deploy your Backend
+            # 1) Prepare app directory
+            mkdir -p ~/app && cd ~/app
+
+            # 2) Clone or pull latest
+            if [ ! -d .git ]; then
+              git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
+            else
+              git pull origin main
+            fi
+
+            # 3) Install Docker & Git if missing
+            if ! command -v docker >/dev/null; then
+              if command -v yum >/dev/null; then
+                sudo yum update -y
+                sudo amazon-linux-extras install -y docker
+                sudo systemctl enable --now docker
+              elif command -v dnf >/dev/null; then
+                sudo dnf update -y
+                sudo dnf install -y docker
+                sudo systemctl enable --now docker
+              elif command -v apt-get >/dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y docker.io
+                sudo systemctl enable --now docker
+              fi
+            fi
+
+            # 4) Build & restart frontend container
+            sudo docker stop dashboard  || true
+            sudo docker rm   dashboard  || true
+            sudo docker build -t dashboard ./frontend
+            sudo docker run -d --name dashboard -p 80:80 dashboard
+
       - name: Deploy Backend to EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -57,10 +75,33 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ec2-user/app || git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git app
-            cd app && git pull origin main
-            sudo amazon-linux-extras install -y podman
-            podman stop ditto || true
-            podman rm ditto  || true
-            podman build -t ditto ./backend
-            podman run -d --name ditto -p 8080:8080 ditto
+            set -e
+
+            mkdir -p ~/app && cd ~/app
+
+            if [ ! -d .git ]; then
+              git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
+            else
+              git pull origin main
+            fi
+
+            if ! command -v docker >/dev/null; then
+              if command -v yum >/dev/null; then
+                sudo yum update -y
+                sudo amazon-linux-extras install -y docker
+                sudo systemctl enable --now docker
+              elif command -v dnf >/dev/null; then
+                sudo dnf update -y
+                sudo dnf install -y docker
+                sudo systemctl enable --now docker
+              elif command -v apt-get >/dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y docker.io
+                sudo systemctl enable --now docker
+              fi
+            fi
+
+            sudo docker stop ditto  || true
+            sudo docker rm   ditto  || true
+            sudo docker build -t ditto ./backend
+            sudo docker run -d --name ditto -p 8080:8080 ditto
