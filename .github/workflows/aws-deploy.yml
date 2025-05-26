@@ -86,8 +86,20 @@ jobs:
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Build & restart frontend container
-            cd ./3d-visualization-comparison
+            # 3) Create Dockerfile for the frontend if it doesn't exist
+            cd ./DigitalTwinAnalyzer/3d-visualization-comparison
+            echo "Creating Dockerfile for frontend if needed..."
+            if [ ! -f Dockerfile ]; then
+              echo "Dockerfile not found, creating one..."
+              cat > Dockerfile << 'EOF'
+FROM nginx:alpine
+COPY . /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+EOF
+            fi
+
+            # 4) Build & restart frontend container
             echo "Building frontend Docker image..."
             sudo docker stop dashboard || true
             sudo docker rm dashboard || true
@@ -158,9 +170,35 @@ jobs:
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Build & restart backend container
+            # 3) Use the existing Dockerfile in ditto-master or create one if it doesn't exist
+            cd ./DigitalTwinAnalyzer/ditto-master
+            echo "Looking for Dockerfile..."
+            
+            if [ -f dockerfile-release ]; then
+              echo "Using existing dockerfile-release..."
+              cp dockerfile-release Dockerfile
+            elif [ ! -f Dockerfile ]; then
+              echo "Dockerfile not found, creating one..."
+              cat > Dockerfile << 'EOF'
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /ditto
+
+# Copy required ditto modules
+COPY deployment/docker /ditto/docker
+
+# Default environment variables
+ENV HTTP_PORT=8080
+ENV DITTO_HOME=/ditto
+
+EXPOSE 8080
+
+ENTRYPOINT ["/ditto/docker/start.sh"]
+EOF
+            fi
+
+            # 4) Build & restart backend container
             echo "Building backend Docker image..."
-            cd ./ditto-master
             sudo docker stop ditto || true
             sudo docker rm ditto || true
             sudo docker build -t ditto . || {
