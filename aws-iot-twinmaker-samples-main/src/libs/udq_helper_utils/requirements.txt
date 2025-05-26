@@ -1,3 +1,0 @@
-sqlparse==0.4.4
-requests==2.31.0
-urllib3<2

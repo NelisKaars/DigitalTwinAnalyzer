@@ -1,9 +1,0 @@
-{
-    "componentTypeId": "com.example.cookiefactory.space",
-    "propertyDefinitions": {
-        "position":  {"dataType": {"nestedType": {"type": "DOUBLE"},"type": "LIST"}},
-        "rotation":  {"dataType": {"nestedType": {"type": "DOUBLE"},"type": "LIST"}},
-        "bounds":  {"dataType": {"nestedType": {"type": "DOUBLE"},"type": "LIST"}},
-        "parent_space" : { "dataType": {"type": "RELATIONSHIP"}}
-    }
-}
