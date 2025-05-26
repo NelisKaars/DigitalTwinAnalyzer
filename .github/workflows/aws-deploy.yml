@@ -37,19 +37,9 @@ jobs:
 
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
-              if command -v yum >/dev/null; then
-                sudo yum update -y
-                sudo amazon-linux-extras install -y docker git
-                sudo systemctl enable --now docker
-              elif command -v dnf >/dev/null; then
-                sudo dnf update -y
-                sudo dnf install -y docker git
-                sudo systemctl enable --now docker
-              elif command -v apt-get >/dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y docker.io git
-                sudo systemctl enable --now docker
-              fi
+              sudo dnf update -y
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
             fi
 
             # 2) Prepare app directory and clone/pull
@@ -77,19 +67,9 @@ jobs:
 
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
-              if command -v yum >/dev/null; then
-                sudo yum update -y
-                sudo amazon-linux-extras install -y docker git
-                sudo systemctl enable --now docker
-              elif command -v dnf >/dev/null; then
-                sudo dnf update -y
-                sudo dnf install -y docker git
-                sudo systemctl enable --now docker
-              elif command -v apt-get >/dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y docker.io git
-                sudo systemctl enable --now docker
-              fi
+              sudo dnf update -y
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
             fi
 
             # 2) Prepare app directory and clone/pull
