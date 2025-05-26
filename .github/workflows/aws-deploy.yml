@@ -36,30 +36,11 @@ jobs:
           script: |
             set -e
 
-            # 1) Install Docker & Git if missing and ensure docker daemon is running
-            if ! command -v git >/dev/null; then
-              echo "Installing Git..."
-              sudo yum update -y
-              sudo yum install -y git
-            fi
-            
-            if ! command -v docker >/dev/null; then
-              echo "Installing Docker..."
-              sudo yum update -y
-              sudo yum install -y docker
-              sudo usermod -a -G docker $USER
-              echo "Starting Docker service..."
-              sudo systemctl enable docker
-              sudo systemctl start docker
-              # Wait a moment for Docker to fully start
-              sleep 5
-            fi
-            
-            # Check if docker is really running
-            if ! sudo systemctl status docker > /dev/null; then
-              echo "Starting Docker service..."
-              sudo systemctl start docker
-              sleep 5
+            # 1) Install Docker & Git if missing
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+              sudo dnf update -y
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
             fi
 
             # 2) Prepare app directory and get the latest code
@@ -70,45 +51,20 @@ jobs:
             if [ -d .git ]; then
               # Repository exists, just pull latest changes
               echo "Repository exists, pulling latest changes..."
-              git pull origin main || {
-                echo "Git pull failed, recloning repository..."
-                cd ..
-                rm -rf app
-                mkdir -p app
-                cd app
-                git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
-              }
+              git pull origin main
             else
               # Repository doesn't exist or not a git repo, clone fresh
               echo "Repository doesn't exist or not a git repo, cloning fresh..."
               # Remove any existing files to ensure clean clone
-              rm -rf * .[^.]* 2>/dev/null || true
+              rm -rf * .[^.]*
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Create Dockerfile for the frontend if it doesn't exist
-            cd ./DigitalTwinAnalyzer/3d-visualization-comparison
-            echo "Creating Dockerfile for frontend if needed..."
-            if [ ! -f Dockerfile ]; then
-              echo "Dockerfile not found, creating one..."
-              cat > Dockerfile << 'EOF'
-FROM nginx:alpine
-COPY . /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-EOF
-            fi
-
-            # 4) Build & restart frontend container
-            echo "Building frontend Docker image..."
+            # 3) Build & restart frontend container
+            cd ./3d-visualization-comparison
             sudo docker stop dashboard || true
             sudo docker rm dashboard || true
-            sudo docker build -t dashboard . || {
-              echo "Docker build failed, checking Docker status..."
-              sudo systemctl status docker
-              exit 1
-            }
-            echo "Running frontend Docker container..."
+            sudo docker build -t dashboard .
             sudo docker run -d --name dashboard -p 80:80 dashboard
 
       - name: Deploy Backend to EC2
@@ -120,30 +76,11 @@ EOF
           script: |
             set -e
 
-            # 1) Install Docker & Git if missing and ensure docker daemon is running
-            if ! command -v git >/dev/null; then
-              echo "Installing Git..."
-              sudo yum update -y
-              sudo yum install -y git
-            fi
-            
-            if ! command -v docker >/dev/null; then
-              echo "Installing Docker..."
-              sudo yum update -y
-              sudo yum install -y docker
-              sudo usermod -a -G docker $USER
-              echo "Starting Docker service..."
-              sudo systemctl enable docker
-              sudo systemctl start docker
-              # Wait a moment for Docker to fully start
-              sleep 5
-            fi
-            
-            # Check if docker is really running
-            if ! sudo systemctl status docker > /dev/null; then
-              echo "Starting Docker service..."
-              sudo systemctl start docker
-              sleep 5
+            # 1) Install Docker & Git if missing
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+              sudo dnf update -y
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
             fi
 
             # 2) Prepare app directory and get the latest code
@@ -154,57 +91,18 @@ EOF
             if [ -d .git ]; then
               # Repository exists, just pull latest changes
               echo "Repository exists, pulling latest changes..."
-              git pull origin main || {
-                echo "Git pull failed, recloning repository..."
-                cd ..
-                rm -rf app
-                mkdir -p app
-                cd app
-                git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
-              }
+              git pull origin main
             else
               # Repository doesn't exist or not a git repo, clone fresh
               echo "Repository doesn't exist or not a git repo, cloning fresh..."
               # Remove any existing files to ensure clean clone
-              rm -rf * .[^.]* 2>/dev/null || true
+              rm -rf * .[^.]*
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Use the existing Dockerfile in ditto-master or create one if it doesn't exist
-            cd ./DigitalTwinAnalyzer/ditto-master
-            echo "Looking for Dockerfile..."
-            
-            if [ -f dockerfile-release ]; then
-              echo "Using existing dockerfile-release..."
-              cp dockerfile-release Dockerfile
-            elif [ ! -f Dockerfile ]; then
-              echo "Dockerfile not found, creating one..."
-              cat > Dockerfile << 'EOF'
-FROM eclipse-temurin:17-jre-alpine
-
-WORKDIR /ditto
-
-# Copy required ditto modules
-COPY deployment/docker /ditto/docker
-
-# Default environment variables
-ENV HTTP_PORT=8080
-ENV DITTO_HOME=/ditto
-
-EXPOSE 8080
-
-ENTRYPOINT ["/ditto/docker/start.sh"]
-EOF
-            fi
-
-            # 4) Build & restart backend container
-            echo "Building backend Docker image..."
+            # 3) Build & restart backend container
+            cd ./ditto-master
             sudo docker stop ditto || true
             sudo docker rm ditto || true
-            sudo docker build -t ditto . || {
-              echo "Docker build failed, checking Docker status..."
-              sudo systemctl status docker
-              exit 1
-            }
-            echo "Running backend Docker container..."
+            sudo docker build -t ditto .
             sudo docker run -d --name ditto -p 8080:8080 ditto
