@@ -43,17 +43,25 @@ jobs:
               sudo systemctl enable --now docker
             fi
 
-            # 2) Prepare app directory and clone/pull using HTTPS instead of SSH
-            mkdir -p ~/app && cd ~/app
-
-            if [ ! -d .git ]; then
-              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
-            else
+            # 2) Prepare app directory and get the latest code
+            mkdir -p ~/app
+            cd ~/app
+            
+            # Check if the repository exists and handle accordingly
+            if [ -d .git ]; then
+              # Repository exists, just pull latest changes
+              echo "Repository exists, pulling latest changes..."
               git pull origin main
+            else
+              # Repository doesn't exist or not a git repo, clone fresh
+              echo "Repository doesn't exist or not a git repo, cloning fresh..."
+              # Remove any existing files to ensure clean clone
+              rm -rf * .[^.]*
+              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
             # 3) Build & restart frontend container
-            cd ./DigitalTwinAnalyzer/3d-visualization-comparison
+            cd ./3d-visualization-comparison
             sudo docker stop dashboard || true
             sudo docker rm dashboard || true
             sudo docker build -t dashboard .
@@ -75,17 +83,25 @@ jobs:
               sudo systemctl enable --now docker
             fi
 
-            # 2) Prepare app directory and clone/pull using HTTPS instead of SSH
-            mkdir -p ~/app && cd ~/app
-
-            if [ ! -d .git ]; then
-              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
-            else
+            # 2) Prepare app directory and get the latest code
+            mkdir -p ~/app
+            cd ~/app
+            
+            # Check if the repository exists and handle accordingly
+            if [ -d .git ]; then
+              # Repository exists, just pull latest changes
+              echo "Repository exists, pulling latest changes..."
               git pull origin main
+            else
+              # Repository doesn't exist or not a git repo, clone fresh
+              echo "Repository doesn't exist or not a git repo, cloning fresh..."
+              # Remove any existing files to ensure clean clone
+              rm -rf * .[^.]*
+              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
             # 3) Build & restart backend container
-            cd ./DigitalTwinAnalyzer/ditto-master
+            cd ./ditto-master
             sudo docker stop ditto || true
             sudo docker rm ditto || true
             sudo docker build -t ditto .
