@@ -35,36 +35,34 @@ jobs:
           script: |
             set -e
 
-            # 1) Prepare app directory
-            mkdir -p ~/app && cd ~/app
+            # 1) Install Docker & Git if missing
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+              if command -v yum >/dev/null; then
+                sudo yum update -y
+                sudo amazon-linux-extras install -y docker git
+                sudo systemctl enable --now docker
+              elif command -v dnf >/dev/null; then
+                sudo dnf update -y
+                sudo dnf install -y docker git
+                sudo systemctl enable --now docker
+              elif command -v apt-get >/dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y docker.io git
+                sudo systemctl enable --now docker
+              fi
+            fi
 
-            # 2) Clone or pull latest
+            # 2) Prepare app directory and clone/pull
+            mkdir -p ~/app && cd ~/app
             if [ ! -d .git ]; then
               git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
             else
               git pull origin main
             fi
 
-            # 3) Install Docker & Git if missing
-            if ! command -v docker >/dev/null; then
-              if command -v yum >/dev/null; then
-                sudo yum update -y
-                sudo amazon-linux-extras install -y docker
-                sudo systemctl enable --now docker
-              elif command -v dnf >/dev/null; then
-                sudo dnf update -y
-                sudo dnf install -y docker
-                sudo systemctl enable --now docker
-              elif command -v apt-get >/dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y docker.io
-                sudo systemctl enable --now docker
-              fi
-            fi
-
-            # 4) Build & restart frontend container
-            sudo docker stop dashboard  || true
-            sudo docker rm   dashboard  || true
+            # 3) Build & restart frontend container
+            sudo docker stop dashboard || true
+            sudo docker rm   dashboard || true
             sudo docker build -t dashboard ./frontend
             sudo docker run -d --name dashboard -p 80:80 dashboard
 
@@ -77,31 +75,33 @@ jobs:
           script: |
             set -e
 
-            mkdir -p ~/app && cd ~/app
+            # 1) Install Docker & Git if missing
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+              if command -v yum >/dev/null; then
+                sudo yum update -y
+                sudo amazon-linux-extras install -y docker git
+                sudo systemctl enable --now docker
+              elif command -v dnf >/dev/null; then
+                sudo dnf update -y
+                sudo dnf install -y docker git
+                sudo systemctl enable --now docker
+              elif command -v apt-get >/dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y docker.io git
+                sudo systemctl enable --now docker
+              fi
+            fi
 
+            # 2) Prepare app directory and clone/pull
+            mkdir -p ~/app && cd ~/app
             if [ ! -d .git ]; then
               git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
             else
               git pull origin main
             fi
 
-            if ! command -v docker >/dev/null; then
-              if command -v yum >/dev/null; then
-                sudo yum update -y
-                sudo amazon-linux-extras install -y docker
-                sudo systemctl enable --now docker
-              elif command -v dnf >/dev/null; then
-                sudo dnf update -y
-                sudo dnf install -y docker
-                sudo systemctl enable --now docker
-              elif command -v apt-get >/dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y docker.io
-                sudo systemctl enable --now docker
-              fi
-            fi
-
-            sudo docker stop ditto  || true
-            sudo docker rm   ditto  || true
+            # 3) Build & restart backend container
+            sudo docker stop ditto || true
+            sudo docker rm   ditto || true
             sudo docker build -t ditto ./backend
             sudo docker run -d --name ditto -p 8080:8080 ditto
