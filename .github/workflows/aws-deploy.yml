@@ -1,14 +1,12 @@
-name: SSH Deploy to EC2
+name: SSH Deploy to EC2 (via scp + ssh)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -21,75 +19,48 @@ jobs:
 
       - name: Add EC2 hosts to known_hosts
         run: |
-          mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
           ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy Frontend to EC2
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST_FE }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
+      - name: Copy frontend code to EC2
+        run: |
+          rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            ./frontend/ ec2-user@${{ secrets.EC2_HOST_FE }}:/home/ec2-user/app/frontend/
+
+      - name: Deploy Frontend on EC2
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes ec2-user@${{ secrets.EC2_HOST_FE }} << 'EOF'
             set -e
 
-            # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
-              sudo dnf update -y
-              sudo dnf install -y docker git
-              sudo systemctl enable --now docker
-            fi
+            # install Docker & Git if needed
+            sudo dnf update -y && sudo dnf install -y docker git
 
-            # 2) Prepare app directory and clone/pull
-            mkdir -p ~/.ssh
-            ssh-keyscan github.com >> ~/.ssh/known_hosts
-            chmod 644 ~/.ssh/known_hosts
-            mkdir -p ~/app && cd ~/app
-            
-            if [ ! -d .git ]; then
-              git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
-            else
-              git pull origin main
-            fi
-
-            # 3) Build & restart frontend container
-            sudo docker stop dashboard || true
-            sudo docker rm   dashboard || true
-            sudo docker build -t dashboard ./frontend
+            # build & (re)run
+            cd ~/app/frontend
+            sudo docker stop dashboard  || true
+            sudo docker rm   dashboard  || true
+            sudo docker build -t dashboard .
             sudo docker run -d --name dashboard -p 80:80 dashboard
+          EOF
 
-      - name: Deploy Backend to EC2
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST_BE }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
+      - name: Copy backend code to EC2
+        run: |
+          rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            ./backend/ ec2-user@${{ secrets.EC2_HOST_BE }}:/home/ec2-user/app/backend/
+
+      - name: Deploy Backend on EC2
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes ec2-user@${{ secrets.EC2_HOST_BE }} << 'EOF'
             set -e
 
-            # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
-              sudo dnf update -y
-              sudo dnf install -y docker git
-              sudo systemctl enable --now docker
-            fi
+            # install Docker & Git if needed
+            sudo dnf update -y && sudo dnf install -y docker git
 
-            # 2) Prepare app directory and clone/pull
-            mkdir -p ~/.ssh
-            ssh-keyscan github.com >> ~/.ssh/known_hosts
-            chmod 644 ~/.ssh/known_hosts
-            mkdir -p ~/app && cd ~/app
-
-            if [ ! -d .git ]; then
-              git clone git@github.com:NelisKaars/DigitalTwinAnalyzer.git .
-            else
-              git pull origin main
-            fi
-
-            # 3) Build & restart backend container
-            sudo docker stop ditto || true
-            sudo docker rm   ditto || true
-            sudo docker build -t ditto ./backend
+            # build & (re)run
+            cd ~/app/backend
+            sudo docker stop ditto  || true
+            sudo docker rm   ditto  || true
+            sudo docker build -t ditto .
             sudo docker run -d --name ditto -p 8080:8080 ditto
+          EOF
