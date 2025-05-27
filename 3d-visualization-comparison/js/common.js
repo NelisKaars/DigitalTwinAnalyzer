@@ -7,11 +7,14 @@
 // For local development use "localhost"
 const DITTO_HOST = "3.254.3.170";  // Change to "localhost" for local development
 
+// Use same protocol (http/https) as the current page to avoid mixed content issues
+const PROTOCOL = window.location.protocol;
+
 // Digital Twin API namespace
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: `http://${DITTO_HOST}:8080`,
+        baseUrl: `${PROTOCOL}//${DITTO_HOST}:8080`,
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
