@@ -80,7 +80,7 @@ jobs:
             if ! command -v git >/dev/null || ! command -v docker-compose >/dev/null; then
               sudo dnf update -y
               sudo dnf install -y git docker-compose
-              sudo systemctl enable --now docker
+              sudo systemctl enable --now docker-compose
             fi
 
             # 2) Prepare app directory and get the latest code
