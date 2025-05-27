@@ -79,16 +79,9 @@ jobs:
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
-              sudo dnf install -y docker git
-              sudo systemctl enable --now docker
-            fi
-            
-            # Make sure docker-compose is available
-            if ! command -v docker-compose >/dev/null; then
-              # Install docker-compose binary directly 
-              sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo dnf install -y git
+              sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
-              sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
             fi
 
             # 2) Prepare app directory and get the latest code
