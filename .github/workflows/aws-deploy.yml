@@ -102,7 +102,5 @@ jobs:
 
             # 3) Build & restart backend container
             cd ./ditto-master/deployment/docker/
-            sudo docker stop ditto || true
-            sudo docker rm ditto || true
-            sudo docker build -t ditto .
-            sudo docker run -d --name ditto -p 8080:8080 ditto
+            sudo docker compose down || true
+            sudo docker compose up -d
