@@ -86,7 +86,7 @@ jobs:
             # Make sure docker-compose is available
             if ! command -v docker-compose >/dev/null; then
               sudo dnf install -y python3-pip
-              sudo pip3 install docker-compose
+              sudo pip3 install --ignore-installed docker-compose
             fi
 
             # 2) Prepare app directory and get the latest code
