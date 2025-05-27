@@ -16,6 +16,10 @@ import base64
 from typing import Dict, List, Any, Optional
 import signal
 
+# CONFIGURABLE: Set to your EC2 backend IP when running in the cloud
+# For local development use "localhost"
+DITTO_HOST = "3.254.3.170"  # Change to "localhost" for local development
+
 # ANSI color codes for terminal output
 class Colors:
     HEADER = '\033[95m'
@@ -40,7 +44,7 @@ def get_auth_header():
     
     return {"Authorization": f"Basic {auth_b64}"}
 
-def wait_for_ditto(ditto_url="http://localhost:8080", timeout=120, interval=5):
+def wait_for_ditto(ditto_url=None, timeout=120, interval=5):
     """
     Wait for Ditto to become available by repeatedly checking its health endpoints
     
@@ -52,7 +56,10 @@ def wait_for_ditto(ditto_url="http://localhost:8080", timeout=120, interval=5):
     Returns:
         bool: True if Ditto becomes available, False if timeout is reached
     """
-    print_step(f"Waiting for Ditto to become available (may take up to {timeout}s)")
+    if ditto_url is None:
+        ditto_url = f"http://{DITTO_HOST}:8080"
+    
+    print_step(f"Waiting for Ditto ({DITTO_HOST}) to become available (may take up to {timeout}s)")
     
     auth_headers = get_auth_header()
     headers = {
@@ -119,8 +126,11 @@ def wait_for_ditto(ditto_url="http://localhost:8080", timeout=120, interval=5):
     print_warning("Or try restarting with: ./setup.py restart")
     return False
 
-def create_factory_digital_twin(ditto_url="http://localhost:8080"):
+def create_factory_digital_twin(ditto_url=None):
     """Create the Factory digital twin if it doesn't exist"""
+    if ditto_url is None:
+        ditto_url = f"http://{DITTO_HOST}:8080"
+        
     thing_id = "org.eclipse.ditto:Factory"
     url = f"{ditto_url}/api/2/things/{thing_id}"
     
@@ -561,4 +571,3 @@ def main() -> None:
     
 if __name__ == "__main__":
     main()
-    

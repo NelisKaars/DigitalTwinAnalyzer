@@ -3,11 +3,15 @@
  * This file provides common utilities and APIs that all frameworks can use.
  */
 
+// CONFIGURABLE: Set to your EC2 backend IP when running in the cloud
+// For local development use "localhost"
+const DITTO_HOST = "3.254.3.170";  // Change to "localhost" for local development
+
 // Digital Twin API namespace
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: 'http://3.254.3.170:8080', // Changed from localhost to backend EC2 IP
+        baseUrl: `http://${DITTO_HOST}:8080`,
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
