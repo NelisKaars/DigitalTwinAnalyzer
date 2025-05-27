@@ -7,7 +7,7 @@
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: 'http://localhost:8080',
+        baseUrl: 'http://3.254.3.170:8080', // Changed from localhost to backend EC2 IP
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
