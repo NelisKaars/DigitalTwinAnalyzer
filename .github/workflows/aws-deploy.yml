@@ -77,9 +77,9 @@ jobs:
             set -e
 
             # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+            if ! command -v git >/dev/null || ! command -v docker-compose >/dev/null; then
               sudo dnf update -y
-              sudo dnf install -y docker git
+              sudo dnf install -y git docker-compose
               sudo systemctl enable --now docker
             fi
 
@@ -102,5 +102,5 @@ jobs:
 
             # 3) Build & restart backend container
             cd ./ditto-master/deployment/docker/
-            sudo docker compose down || true
-            sudo docker compose up -d
+            sudo docker-compose down || true
+            sudo docker-compose up -d
