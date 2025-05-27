@@ -77,10 +77,16 @@ jobs:
             set -e
 
             # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null || ! command -v docker-compose >/dev/null; then
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
-              sudo dnf install -y git docker-compose
-              sudo systemctl enable --now docker-compose
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
+            fi
+            
+            # Make sure docker-compose is available
+            if ! command -v docker-compose >/dev/null; then
+              sudo dnf install -y python3-pip
+              sudo pip3 install docker-compose
             fi
 
             # 2) Prepare app directory and get the latest code
