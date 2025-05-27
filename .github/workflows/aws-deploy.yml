@@ -80,7 +80,6 @@ jobs:
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
               sudo dnf install -y docker git
-              sudo dnf install -y docker-compose
               sudo systemctl enable --now docker
             fi
 
@@ -101,7 +100,9 @@ jobs:
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Build & restart backend via docker-compose
-            cd ./ditto-master/deployment/docker
-            sudo docker-compose down || true
-            sudo docker-compose up -d
+            # 3) Build & restart backend container
+            cd ./ditto-master
+            sudo docker stop ditto || true
+            sudo docker rm ditto || true
+            sudo docker build -t ditto .
+            sudo docker run -d --name ditto -p 8080:8080 ditto
