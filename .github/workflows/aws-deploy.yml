@@ -64,7 +64,7 @@ jobs:
             cd ./3d-visualization-comparison
             sudo docker stop dashboard || true
             sudo docker rm dashboard || true
-            sudo docker build -t dashboard .
+            sudo docker build --no-cache -t dashboard .
             sudo docker run -d --name dashboard -p 80:80 dashboard
 
       - name: Deploy Backend to EC2
