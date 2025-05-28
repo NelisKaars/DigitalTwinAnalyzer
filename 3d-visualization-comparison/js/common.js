@@ -5,7 +5,7 @@
 
 // CONFIGURABLE: Set to your EC2 backend IP when running in the cloud
 // For local development use "localhost"
-const DITTO_HOST = "3.254.3.170";  // Change to "localhost" for local development
+const DITTO_HOST = "54.217.116.62";  // Change to "localhost" for local development
 
 // Use same protocol (http/https) as the current page to avoid mixed content issues
 const PROTOCOL = window.location.protocol;

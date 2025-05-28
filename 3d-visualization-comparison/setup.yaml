@@ -5,7 +5,7 @@ version: "1.0"
 
 # CONFIGURABLE: Change this to your EC2 public IP when deploying to the cloud
 # For local development use "localhost"
-ditto_host: "3.254.3.170"  # Change to "localhost" for local development
+ditto_host: "54.217.116.62"  # Change to "localhost" for local development
 
 # Environment setup steps
 setup:
