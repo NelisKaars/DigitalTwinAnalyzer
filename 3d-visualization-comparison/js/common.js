@@ -14,7 +14,7 @@ const PROTOCOL = window.location.protocol;
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: `${PROTOCOL}//${DITTO_HOST}:8080`,
+        baseUrl: `${PROTOCOL}//${DITTO_HOST}:8081`, // Changed to port 8081 where Ditto gateway is running
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
