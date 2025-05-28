@@ -7,7 +7,7 @@
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: '/api', // Use the local proxy instead of direct backend connection
+        baseUrl: '', // Empty string to avoid duplicate /api/ in paths
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
