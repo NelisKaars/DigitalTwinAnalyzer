@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ditto UI Proxy</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .ip-field {
+            margin: 20px 0;
+            padding: 10px;
+            width: 100%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ditto UI Connector</h1>
+        <p>This page helps you connect to the Ditto UI on our EC2 backend.</p>
+        
+        <div>
+            <label for="backendIp">Backend IP Address:</label><br>
+            <input type="text" id="backendIp" class="ip-field" value="54.217.116.62">
+        </div>
+        
+        <div>
+            <label for="backendPort">Backend Port:</label><br>
+            <input type="text" id="backendPort" class="ip-field" value="8081">
+        </div>
+        
+        <button onclick="openDittoUi()">Open Ditto UI</button>
+        
+        <div id="instructions" style="margin-top: 20px; text-align: left;">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Verify the backend IP address and port are correct</li>
+                <li>Click "Open Ditto UI" to launch the Ditto Explorer</li>
+                <li>When prompted, use username <strong>ditto</strong> and password <strong>ditto</strong></li>
+                <li>The page will open in a new tab with the correct connection settings</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function openDittoUi() {
+            const ip = document.getElementById('backendIp').value;
+            const port = document.getElementById('backendPort').value;
+            const url = `http://${ip}:${port}/ui/`;
+            
+            // Open Ditto UI in new tab
+            window.open(url, '_blank');
+            
+            // Store the values in localStorage for next time
+            localStorage.setItem('dittoBackendIp', ip);
+            localStorage.setItem('dittoBackendPort', port);
+        }
+        
+        // Load saved values if available
+        window.onload = function() {
+            const savedIp = localStorage.getItem('dittoBackendIp');
+            const savedPort = localStorage.getItem('dittoBackendPort');
+            
+            if (savedIp) {
+                document.getElementById('backendIp').value = savedIp;
+            }
+            
+            if (savedPort) {
+                document.getElementById('backendPort').value = savedPort;
+            }
+        };
+    </script>
+</body>
+</html>
