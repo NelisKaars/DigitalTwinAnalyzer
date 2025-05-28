@@ -22,7 +22,11 @@ const DittoAPI = {
     // Authentication header generation
     getAuthHeader() {
         const auth = btoa(`${this.settings.username}:${this.settings.password}`);
-        return { 'Authorization': `Basic ${auth}` };
+        return { 
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
     },
 
     // Get the current state of the digital twin
@@ -30,7 +34,8 @@ const DittoAPI = {
         try {
             const response = await fetch(`${this.settings.baseUrl}/api/2/things/${this.settings.thingId}`, {
                 method: 'GET',
-                headers: this.getAuthHeader()
+                headers: this.getAuthHeader(),
+                mode: 'cors'
             });
 
             if (!response.ok) {
@@ -52,11 +57,9 @@ const DittoAPI = {
             const startTime = performance.now();
             const response = await fetch(url, {
                 method: 'PUT',
-                headers: {
-                    ...this.getAuthHeader(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(value)
+                headers: this.getAuthHeader(),
+                body: JSON.stringify(value),
+                mode: 'cors'
             });
             const endTime = performance.now();
             
