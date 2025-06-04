@@ -156,18 +156,18 @@ jobs:
             
             # Create a simple service file that redirects localhost:8080 to the gateway
             cat > ditto-redirect.service << 'EOL'
-[Unit]
-Description=Ditto localhost redirect
-After=network.target
+            [Unit]
+            Description=Ditto localhost redirect
+            After=network.target
 
-[Service]
-ExecStart=/usr/bin/socat TCP-LISTEN:8080,fork TCP:localhost:80
-Restart=always
-User=root
+            [Service]
+            ExecStart=/usr/bin/socat TCP-LISTEN:8080,fork TCP:localhost:80
+            Restart=always
+            User=root
 
-[Install]
-WantedBy=multi-user.target
-EOL
+            [Install]
+            WantedBy=multi-user.target
+            EOL
             
             # Install and start the service
             sudo mv ditto-redirect.service /etc/systemd/system/
