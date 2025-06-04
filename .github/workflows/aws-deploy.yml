@@ -116,56 +116,22 @@ jobs:
             docker-compose down || true
             docker-compose up -d
             
-            # 4) Wait for Ditto services to be ready
-            echo "Waiting for Ditto services to start up..."
-            sleep 30
+            # 4) Wait for containers to start
+            echo "Waiting for Docker containers to start..."
+            sleep 45
             
-            # Check if Ditto is responding
-            MAX_RETRIES=12
-            RETRY_COUNT=0
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              if curl -f -s "http://localhost:8080/status" >/dev/null 2>&1; then
-                echo "Ditto services are ready!"
-                break
-              fi
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "Waiting for Ditto... (attempt $RETRY_COUNT/$MAX_RETRIES)"
-              sleep 10
-            done
-            
-            # 5) Deploy custom frontend to backend nginx container
-            echo "Deploying custom frontend to backend nginx container..."
-            
-            # Get the nginx container name
-            NGINX_CONTAINER=$(docker-compose ps --format "table {{.Names}}\t{{.Image}}" | grep nginx | awk '{print $1}')
-            
-            if [ -n "$NGINX_CONTAINER" ]; then
-              # Create the app directory in the container
-              docker exec $NGINX_CONTAINER mkdir -p /usr/share/nginx/html/app
-              
-              # Copy frontend files to the container
-              docker cp ../../3d-visualization-comparison/. $NGINX_CONTAINER:/usr/share/nginx/html/app/
-              
-              # Set proper permissions
-              docker exec $NGINX_CONTAINER chown -R nginx:nginx /usr/share/nginx/html/app 2>/dev/null || true
-              docker exec $NGINX_CONTAINER chmod -R 755 /usr/share/nginx/html/app
-              
-              # Reload nginx configuration
-              docker exec $NGINX_CONTAINER nginx -s reload
-              
-              echo "✅ Custom frontend deployed successfully!"
-              echo "🌐 Access your custom frontend at: http://54.217.116.62:8080/app/"
-              echo "🔧 Access dashboard at: http://54.217.116.62:8080/app/dashboard.html"
-            else
-              echo "⚠️ Could not find nginx container"
-            fi
-            
-            # 6) Initialize the Factory digital twin
+            # 5) Initialize the Factory digital twin
             if [ -f ./create-factory-twin.sh ]; then
               echo "Creating Factory digital twin..."
               chmod +x ./create-factory-twin.sh
-              ./create-factory-twin.sh
-              echo "✅ Factory digital twin initialization complete!"
+              # Run in background and continue - don't wait for completion
+              ./create-factory-twin.sh &
+              echo "✅ Factory digital twin creation started in background"
             else
               echo "⚠️ Factory twin creation script not found"
             fi
+            
+            echo "🎉 Backend deployment complete!"
+            echo "📍 Ditto UI: http://54.217.116.62:8080/ui/"
+            echo "📍 API Documentation: http://54.217.116.62:8080/apidoc/"
+            echo "📍 Environment Config: http://54.217.116.62:8080/ui-environments.json"

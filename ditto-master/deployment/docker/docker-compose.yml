@@ -252,6 +252,7 @@ services:
        - ./nginx-cors.conf:/etc/nginx/nginx-cors.conf:ro
        - ./mime.types:/etc/nginx/mime.types:ro
        - ./index.html:/etc/nginx/html/index.html:ro
+       - ./ui-environments.json:/etc/nginx/html/ui-environments.json:ro
        - ../../documentation/src/main/resources/images:/etc/nginx/html/images:ro
        - ../../documentation/src/main/resources/wot:/etc/nginx/html/wot:ro
     ports:

@@ -1,0 +1,42 @@
+{
+  "aws_production": {
+    "api_uri": "http://54.217.116.62:8080",
+    "ditto_version": 3,
+    "disablePolicies": false,
+    "disableConnections": false,
+    "disableOperations": false,
+    "authSettings": {
+      "main": {
+        "method": "basic",
+        "oidc": {
+          "enabled": false
+        },
+        "basic": {
+          "enabled": true,
+          "defaultUsernamePassword": "ditto:ditto"
+        },
+        "bearer": {
+          "enabled": true
+        },
+        "pre": {
+          "enabled": false,
+          "defaultDittoPreAuthenticatedUsername": null
+        }
+      },
+      "devops": {
+        "method": "basic",
+        "oidc": {
+          "enabled": false
+        },
+        "basic": {
+          "enabled": true,
+          "defaultUsernamePassword": "devops:foobar"
+        },
+        "bearer": {
+          "enabled": true
+        }
+      },
+      "oidc": {}
+    }
+  }
+}
