@@ -78,6 +78,24 @@ jobs:
           script: |
             set -e
 
+            # 0) Check disk space and extend filesystem if needed
+            echo "===== DISK INFORMATION ====="
+            df -h /
+            
+            # Extend filesystem if needed to use newly allocated space
+            sudo growpart /dev/xvda 1 || true
+            sudo xfs_growfs -d / || true
+            
+            echo "===== DISK INFORMATION AFTER EXTENSION ====="
+            df -h /
+            
+            # Aggressive disk cleanup 
+            echo "===== CLEANING UP DISK SPACE ====="
+            sudo dnf clean all || true
+            sudo rm -rf /var/cache/dnf/* || true
+            sudo docker system prune -af || true
+            sudo rm -rf /tmp/* || true
+            
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
@@ -122,22 +140,40 @@ jobs:
               ./create-factory-twin.sh
             fi
             
-            # 5) Set up the local proxy service for localhost:8080 redirects
-            # First, clean up disk space
-            sudo dnf clean all || true
-            sudo rm -rf /var/cache/dnf/* || true
-            sudo rm -rf /tmp/* || true
-            
-            # Install Node.js directly from binary instead of package manager
-            if ! command -v node >/dev/null; then
-              echo "Installing Node.js from binary..."
-              curl -s https://nodejs.org/dist/v18.20.8/node-v18.20.8-linux-x64.tar.gz | sudo tar -xz -C /usr/local
-              sudo ln -sf /usr/local/node-v18.20.8-linux-x64/bin/node /usr/bin/node
-              sudo ln -sf /usr/local/node-v18.20.8-linux-x64/bin/npm /usr/bin/npm
+            # 5) Add localhost:8080 entry to /etc/hosts
+            echo "===== UPDATING /etc/hosts FILE ====="
+            # Check if entry already exists
+            if ! grep -q "127.0.0.1 localhost.ditto" /etc/hosts; then
+              echo "Adding localhost.ditto entry to /etc/hosts..."
+              echo "127.0.0.1 localhost.ditto" | sudo tee -a /etc/hosts
             fi
             
-            # Set up the systemd service
-            sudo cp local-proxy.service /etc/systemd/system/
+            # Create a simple redirect service that will bind to localhost:8080
+            echo "===== CREATING REDIRECT SERVICE ====="
+            
+            # Install socat (much smaller than Node.js)
+            sudo dnf install -y socat || true
+            
+            # Create a simple service file that redirects localhost:8080 to the gateway
+            cat > ditto-redirect.service << 'EOL'
+[Unit]
+Description=Ditto localhost redirect
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/socat TCP-LISTEN:8080,fork TCP:localhost:80
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOL
+            
+            # Install and start the service
+            sudo mv ditto-redirect.service /etc/systemd/system/
             sudo systemctl daemon-reload
-            sudo systemctl enable local-proxy.service
-            sudo systemctl restart local-proxy.service
+            sudo systemctl enable ditto-redirect.service
+            sudo systemctl restart ditto-redirect.service
+            
+            echo "===== CONFIGURATION COMPLETE ====="
+            echo "Ditto should now be accessible at localhost:8080"
