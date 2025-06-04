@@ -3,7 +3,7 @@
 
 # Define variables
 DITTO_HOST="54.217.116.62"
-DITTO_PORT="8081"
+DITTO_PORT="8080"
 THING_ID="org.eclipse.ditto:Factory"
 AUTH="ditto:ditto"
 AUTH_HEADER=$(echo -n $AUTH | base64)
@@ -13,6 +13,7 @@ echo "Creating Factory digital twin on $DITTO_HOST:$DITTO_PORT"
 # Check if the thing already exists
 echo "Checking if Factory twin already exists..."
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+  --max-time 5 \
   -X GET \
   -H "Authorization: Basic $AUTH_HEADER" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/things/$THING_ID")
@@ -26,7 +27,8 @@ echo "Creating Factory twin..."
 
 # Create policy first (required before creating a thing)
 echo "Creating policy..."
-curl -X PUT \
+curl --max-time 5 \
+  -X PUT \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/policies/$THING_ID" \
@@ -57,7 +59,8 @@ curl -X PUT \
   }'
 
 echo -e "\nCreating thing with features..."
-curl -X PUT \
+curl --max-time 5 \
+  -X PUT \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/things/$THING_ID" \
