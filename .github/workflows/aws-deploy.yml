@@ -22,7 +22,6 @@ jobs:
       - name: Add EC2 hosts to known_hosts
         run: |
           mkdir -p ~/.ssh
-          # Use -o StrictHostKeyChecking=no to automatically accept new keys
           ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
           ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
@@ -40,10 +39,7 @@ jobs:
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
-              sudo dnf install -y git
-              
-              # Install Docker using Amazon Linux specific method
-              sudo dnf install -y docker
+              sudo dnf install -y docker git
               sudo systemctl enable --now docker
             fi
 
@@ -82,36 +78,17 @@ jobs:
           script: |
             set -e
 
-            # 0) Check disk space and extend filesystem if needed
-            echo "===== DISK INFORMATION ====="
-            df -h /
-            
-            # Skip filesystem extension on Amazon Linux 2023 - different process may be needed
-            
-            # Aggressive disk cleanup 
-            echo "===== CLEANING UP DISK SPACE ====="
-            sudo dnf clean all || true
-            sudo rm -rf /var/cache/dnf/* || true
-            
             # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null; then
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
               sudo dnf install -y git
-            fi
-            
-            # Install Docker using Amazon Linux specific method
-            if ! command -v docker >/dev/null; then
-              echo "Installing Docker using Amazon Linux method..."
-              sudo dnf install -y docker
+
+              # Install Docker Engine
+              curl -fsSL https://get.docker.com | sudo sh
               sudo systemctl enable --now docker
-              sudo usermod -aG docker ec2-user
-              
-              # Install Docker Compose
-              if ! command -v docker-compose >/dev/null; then
-                sudo dnf install -y curl
-                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-              fi
+
+              sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
             fi
 
             # 2) Prepare app directory and get the latest code
@@ -133,269 +110,14 @@ jobs:
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Clean up old processes and containers
-            echo "===== CLEANING UP OLD PROCESSES ====="
-            # Stop any running socat
-            sudo pkill socat || true
-            # Stop systemd service if it exists
-            sudo systemctl stop ditto-redirect || true
-            sudo systemctl disable ditto-redirect || true
-            # Remove old container processes
-            sudo docker-compose -f ./ditto-master/deployment/docker/docker-compose.yml down || true
-            sudo docker system prune -af || true
-            
-            # 4) Create and install socat service directly (no Node.js)
-            echo "===== SETTING UP SOCAT REDIRECT ====="
-            sudo dnf install -y socat || true
-            
-            cat << EOF | sudo tee /etc/systemd/system/ditto-redirect.service
-            [Unit]
-            Description=Ditto Port Redirect
-            After=docker.service
-            
-            [Service]
-            ExecStart=/usr/bin/socat TCP-LISTEN:8080,fork TCP:localhost:80
-            Restart=always
-            
-            [Install]
-            WantedBy=multi-user.target
-            EOF
-            
-            sudo systemctl daemon-reload
-            sudo systemctl enable ditto-redirect.service
-            sudo systemctl restart ditto-redirect.service
-            
-            # 5) Build & restart backend container with verbose output
+            # 3) Build & restart backend container
             cd ./ditto-master/deployment/docker/
-            echo "===== STARTING DOCKER COMPOSE ====="
+            # Run docker-compose directly from the host machine
             sudo docker-compose down || true
             sudo docker-compose up -d
             
-            # Wait for containers to start
-            echo "===== WAITING FOR CONTAINERS ====="
-            sleep 30
-            
-            # Show container status
-            echo "===== CONTAINER STATUS ====="
-            sudo docker ps
-            
-            # 6) Create create-factory-twin.sh if it doesn't exist
-            if [ ! -f ./create-factory-twin.sh ]; then
-              echo "===== CREATING FACTORY TWIN SCRIPT ====="
-              cat << 'EOF' > ./create-factory-twin.sh
-              #!/bin/bash
-              THING_ID="org.eclipse.ditto:Factory"
-              AUTH="ditto:ditto"
-              
-              # Wait for API to be accessible
-              echo "Waiting for Ditto API to be accessible..."
-              MAX_RETRIES=30
-              RETRY_COUNT=0
-              RETRY_DELAY=5
-              API_READY=false
-              
-              while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$API_READY" != "true" ]; do
-                STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/status || echo "000")
-                if [ "$STATUS_CODE" == "200" ]; then
-                  API_READY=true
-                  echo "Ditto API is now accessible."
-                else
-                  RETRY_COUNT=$((RETRY_COUNT+1))
-                  echo "Waiting for Ditto API, attempt ${RETRY_COUNT}/${MAX_RETRIES}..."
-                  sleep $RETRY_DELAY
-                fi
-              done
-              
-              if [ "$API_READY" != "true" ]; then
-                echo "Ditto API not accessible after ${MAX_RETRIES} attempts. Continuing anyway..."
-              fi
-              
-              echo "Creating Factory digital twin at http://localhost/api/2/things/${THING_ID}"
-              
-              # Create policy first
-              curl -X PUT -u $AUTH -H "Content-Type: application/json" \
-                http://localhost/api/2/policies/${THING_ID} \
-                -d '{
-                  "entries": {
-                    "owner": {
-                      "subjects": {
-                        "nginx:ditto": {
-                          "type": "nginx basic auth user"
-                        }
-                      },
-                      "resources": {
-                        "thing:/": {
-                          "grant": ["READ", "WRITE"],
-                          "revoke": []
-                        },
-                        "policy:/": {
-                          "grant": ["READ", "WRITE"],
-                          "revoke": []
-                        },
-                        "message:/": {
-                          "grant": ["READ", "WRITE"],
-                          "revoke": []
-                        }
-                      }
-                    }
-                  }
-                }'
-              
-              # Create thing with features
-              curl -X PUT -u $AUTH -H "Content-Type: application/json" \
-                http://localhost/api/2/things/${THING_ID} \
-                -d '{
-                  "policyId": "'"$THING_ID"'",
-                  "definition": "org.eclipse.ditto:factory:1.0.0",
-                  "features": {
-                    "Mixer_0": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_0_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "Mixer_1": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_1_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "Mixer_2": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_2_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "Mixer_3": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_3_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "Mixer_4": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_4_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "Mixer_5": {
-                      "properties": {
-                        "Temperature": 100,
-                        "RPM": 60
-                      }
-                    },
-                    "Mixer_5_AlarmComponent": {
-                      "properties": {
-                        "alarm_status": "NORMAL"
-                      }
-                    },
-                    "WaterTank": {
-                      "properties": {
-                        "flowRate1": 35,
-                        "tankVolume1": 75,
-                        "Status": "NORMAL"
-                      }
-                    },
-                    "FreezerTunnel": {
-                      "properties": {
-                        "Temperature": -15,
-                        "State": "NORMAL"
-                      }
-                    },
-                    "PlasticLiner": {
-                      "properties": {
-                        "RPM": 45,
-                        "Status": "NORMAL"
-                      }
-                    },
-                    "CookieFormer": {
-                      "properties": {
-                        "Rate": 120,
-                        "GoodParts": 98.5,
-                        "Status": "NORMAL"
-                      }
-                    },
-                    "BoxSealer": {
-                      "properties": {
-                        "Speed": 0.8,
-                        "Status": "NORMAL"
-                      }
-                    },
-                    "Conveyor": {
-                      "properties": {
-                        "Speed": 0.8,
-                        "Status": "NORMAL"
-                      }
-                    }
-                  }
-                }'
-              
-              echo "Factory digital twin creation complete."
-              EOF
-              
+            # 4) Initialize the Factory digital twin if script exists
+            if [ -f ./create-factory-twin.sh ]; then
               chmod +x ./create-factory-twin.sh
+              ./create-factory-twin.sh
             fi
-            
-            # 7) Initialize the Factory digital twin
-            echo "===== CREATING FACTORY TWIN ====="
-            chmod +x ./create-factory-twin.sh
-            ./create-factory-twin.sh
-            
-            # 8) Save and report the backend URL for the frontend
-            BACKEND_IP=$(hostname -I | awk '{print $1}')
-            echo "===== BACKEND READY ====="
-            echo "Backend URL: http://${BACKEND_IP}:8080"
-            echo "BACKEND_URL=http://${BACKEND_IP}:8080" > ~/.backend_url
-
-      - name: Update frontend configuration
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST_FE }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            
-            # Get the backend URL from the backend instance
-            BACKEND_URL=$(ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST_BE }} "cat ~/.backend_url | cut -d= -f2")
-            echo "Using backend URL: ${BACKEND_URL}"
-            
-            # Update the frontend configuration
-            cd ~/app/3d-visualization-comparison
-            sed -i "s|baseUrl: \"http://[^\"]*\"|baseUrl: \"${BACKEND_URL}\"|g" js/common.js
-            
-            # Show the updated configuration
-            grep -n "baseUrl:" js/common.js
-            
-            # Rebuild and restart the frontend container
-            sudo docker stop dashboard || true
-            sudo docker rm dashboard || true
-            sudo docker build --no-cache -t dashboard .
-            sudo docker run -d --name dashboard -p 80:80 dashboard
-            
-            echo "Frontend updated to use backend at ${BACKEND_URL}"
