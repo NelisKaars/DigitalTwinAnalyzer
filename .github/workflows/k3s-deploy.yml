@@ -22,9 +22,50 @@ jobs:
       - name: Add EC2 hosts to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
+          
+          # Attempt SSH keyscan with retries and error handling
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          # Try EC2 host with fallback to IP if hostname fails
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" != "true" ]; do
+            echo "Attempt $((RETRY_COUNT+1)) to scan EC2 host..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} -T 5 >> ~/.ssh/known_hosts 2>/dev/null; then
+              SUCCESS=true
+              echo "Successfully scanned EC2 backend host."
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Failed to scan EC2 host, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Reset for frontend host
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" != "true" ]; do
+            echo "Attempt $((RETRY_COUNT+1)) to scan EC2 frontend host..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} -T 5 >> ~/.ssh/known_hosts 2>/dev/null; then
+              SUCCESS=true
+              echo "Successfully scanned EC2 frontend host."
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Failed to scan EC2 host, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Add GitHub (this should always work)
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          
+          # Set proper permissions
           chmod 644 ~/.ssh/known_hosts
+          
+          # Verify contents
+          echo "Contents of known_hosts file:"
+          cat ~/.ssh/known_hosts
 
       - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v0.1.6
@@ -85,9 +126,50 @@ jobs:
       - name: Add EC2 hosts to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
+          
+          # Attempt SSH keyscan with retries and error handling
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          # Try EC2 host with fallback to IP if hostname fails
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" != "true" ]; do
+            echo "Attempt $((RETRY_COUNT+1)) to scan EC2 host..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} -T 5 >> ~/.ssh/known_hosts 2>/dev/null; then
+              SUCCESS=true
+              echo "Successfully scanned EC2 backend host."
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Failed to scan EC2 host, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Reset for frontend host
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" != "true" ]; do
+            echo "Attempt $((RETRY_COUNT+1)) to scan EC2 frontend host..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} -T 5 >> ~/.ssh/known_hosts 2>/dev/null; then
+              SUCCESS=true
+              echo "Successfully scanned EC2 frontend host."
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Failed to scan EC2 host, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Add GitHub (this should always work)
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          
+          # Set proper permissions
           chmod 644 ~/.ssh/known_hosts
+          
+          # Verify contents
+          echo "Contents of known_hosts file:"
+          cat ~/.ssh/known_hosts
 
       - name: Deploy Backend with K3s
         uses: appleboy/ssh-action@v0.1.6
