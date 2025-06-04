@@ -1,0 +1,11 @@
+name: Deploy with K3s on EC2 (DISABLED)
+
+# This workflow is currently disabled in favor of the simpler aws-deploy.yml workflow
+# To re-enable, uncomment the "on" section below
+# on:
+#   push:
+#     branches:
+#       - main
+
+jobs:
+  # ...existing code...

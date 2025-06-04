@@ -19,13 +19,48 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Add EC2 hosts to known_hosts
+      - name: Add EC2 hosts to known_hosts (with retry)
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
+          
+          # Try frontend host with retries
+          for i in {1..5}; do
+            echo "Attempt $i: Adding frontend host to known_hosts..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "Frontend host added successfully"
+              break
+            else
+              echo "Failed to add frontend host. Retrying in 5 seconds..."
+              sleep 5
+            fi
+            if [ $i -eq 5 ]; then
+              echo "WARNING: Could not add frontend host after 5 attempts. Continuing anyway..."
+            fi
+          done
+          
+          # Try backend host with retries
+          for i in {1..5}; do
+            echo "Attempt $i: Adding backend host to known_hosts..."
+            if ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "Backend host added successfully"
+              break
+            else
+              echo "Failed to add backend host. Retrying in 5 seconds..."
+              sleep 5
+            fi
+            if [ $i -eq 5 ]; then
+              echo "WARNING: Could not add backend host after 5 attempts. Continuing anyway..."
+            fi
+          done
+          
+          # Always add GitHub
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          
+          # Set permissions and continue regardless of failures above
+          chmod 644 ~/.ssh/known_hosts || true
+          
+          # Create empty known_hosts if it doesn't exist yet
+          touch ~/.ssh/known_hosts
 
       - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v0.1.6
@@ -128,52 +163,89 @@ jobs:
               git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
             fi
 
-            # 3) Build & restart backend container
-            cd ./ditto-master/deployment/docker/
-            # Run docker-compose directly from the host machine
-            sudo docker-compose down || true
-            sudo docker-compose up -d
+            # 3) Clean up old processes and containers
+            echo "===== CLEANING UP OLD PROCESSES ====="
+            # Stop any running socat
+            sudo pkill socat || true
+            # Stop systemd service if it exists
+            sudo systemctl stop ditto-redirect || true
+            sudo systemctl disable ditto-redirect || true
+            # Remove old container processes
+            sudo docker-compose -f ./ditto-master/deployment/docker/docker-compose.yml down || true
+            sudo docker system prune -af || true
             
-            # 4) Initialize the Factory digital twin if script exists
-            if [ -f ./create-factory-twin.sh ]; then
-              chmod +x ./create-factory-twin.sh
-              ./create-factory-twin.sh
-            fi
-            
-            # 5) Add localhost:8080 entry to /etc/hosts
-            echo "===== UPDATING /etc/hosts FILE ====="
-            # Check if entry already exists
-            if ! grep -q "127.0.0.1 localhost.ditto" /etc/hosts; then
-              echo "Adding localhost.ditto entry to /etc/hosts..."
-              echo "127.0.0.1 localhost.ditto" | sudo tee -a /etc/hosts
-            fi
-            
-            # Create a simple redirect service that will bind to localhost:8080
-            echo "===== CREATING REDIRECT SERVICE ====="
-            
-            # Install socat (much smaller than Node.js)
+            # 4) Create and install socat service directly (no Node.js)
+            echo "===== SETTING UP SOCAT REDIRECT ====="
             sudo dnf install -y socat || true
             
-            # Create a simple service file that redirects localhost:8080 to the gateway
-            cat > ditto-redirect.service << 'EOL'
+            cat << EOF | sudo tee /etc/systemd/system/ditto-redirect.service
             [Unit]
-            Description=Ditto localhost redirect
-            After=network.target
-
+            Description=Ditto Port Redirect
+            After=docker.service
+            
             [Service]
             ExecStart=/usr/bin/socat TCP-LISTEN:8080,fork TCP:localhost:80
             Restart=always
-            User=root
-
+            
             [Install]
             WantedBy=multi-user.target
-            EOL
+            EOF
             
-            # Install and start the service
-            sudo mv ditto-redirect.service /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable ditto-redirect.service
             sudo systemctl restart ditto-redirect.service
             
-            echo "===== CONFIGURATION COMPLETE ====="
-            echo "Ditto should now be accessible at localhost:8080"
+            # 5) Build & restart backend container with verbose output
+            cd ./ditto-master/deployment/docker/
+            echo "===== STARTING DOCKER COMPOSE ====="
+            sudo docker-compose down || true
+            sudo docker-compose up -d
+            
+            # Wait for containers to start
+            echo "===== WAITING FOR CONTAINERS ====="
+            sleep 30
+            
+            # Show container status
+            echo "===== CONTAINER STATUS ====="
+            sudo docker ps
+            
+            # 6) Initialize the Factory digital twin
+            if [ -f ./create-factory-twin.sh ]; then
+              echo "===== CREATING FACTORY TWIN ====="
+              chmod +x ./create-factory-twin.sh
+              ./create-factory-twin.sh
+            fi
+            
+            # 7) Save and report the backend URL for the frontend
+            BACKEND_IP=$(hostname -I | awk '{print $1}')
+            echo "===== BACKEND READY ====="
+            echo "Backend URL: http://${BACKEND_IP}:8080"
+            echo "BACKEND_URL=http://${BACKEND_IP}:8080" > ~/.backend_url
+
+      - name: Update frontend configuration
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST_FE }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            
+            # Get the backend URL from the backend instance
+            BACKEND_URL=$(ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST_BE }} "cat ~/.backend_url | cut -d= -f2")
+            echo "Using backend URL: ${BACKEND_URL}"
+            
+            # Update the frontend configuration
+            cd ~/app/3d-visualization-comparison
+            sed -i "s|baseUrl: \"http://[^\"]*\"|baseUrl: \"${BACKEND_URL}\"|g" js/common.js
+            
+            # Show the updated configuration
+            grep -n "baseUrl:" js/common.js
+            
+            # Rebuild and restart the frontend container
+            sudo docker stop dashboard || true
+            sudo docker rm dashboard || true
+            sudo docker build --no-cache -t dashboard .
+            sudo docker run -d --name dashboard -p 80:80 dashboard
+            
+            echo "Frontend updated to use backend at ${BACKEND_URL}"
