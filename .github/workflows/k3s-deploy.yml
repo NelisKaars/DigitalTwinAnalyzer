@@ -1,0 +1,443 @@
+name: Deploy with K3s on EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add EC2 hosts to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy Frontend to EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST_FE }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            # 1) Install Docker & Git if missing
+            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+              sudo dnf update -y
+              sudo dnf install -y docker git
+              sudo systemctl enable --now docker
+            fi
+
+            # 2) Prepare app directory and get the latest code
+            mkdir -p ~/app
+            cd ~/app
+            
+            # Check if the repository exists and handle accordingly
+            if [ -d .git ]; then
+              # Repository exists, stash any local changes first
+              echo "Repository exists, stashing local changes and pulling latest..."
+              git config --global --add safe.directory $(pwd)
+              git stash
+              git pull origin main
+            else
+              # Repository doesn't exist or not a git repo, clone fresh
+              echo "Repository doesn't exist or not a git repo, cloning fresh..."
+              # Remove any existing files to ensure clean clone
+              rm -rf * .[^.]*
+              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
+            fi
+
+            # 3) Build & restart frontend container
+            cd ./3d-visualization-comparison
+            sudo docker stop dashboard || true
+            sudo docker rm dashboard || true
+            sudo docker build --no-cache -t dashboard .
+            sudo docker run -d --name dashboard -p 80:80 dashboard
+
+  deploy-backend-k3s:
+    runs-on: ubuntu-latest
+    needs: deploy-frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add EC2 hosts to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy Backend with K3s
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST_BE }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            
+            # 0) Check disk space and extend filesystem if needed
+            echo "===== DISK INFORMATION ====="
+            df -h /
+            
+            # Clean up disk space
+            echo "===== CLEANING UP DISK SPACE ====="
+            sudo dnf clean all || true
+            sudo rm -rf /var/cache/dnf/* || true
+            sudo docker system prune -af || true
+            sudo rm -rf /tmp/* || true
+
+            # 1) Install K3s (lightweight Kubernetes)
+            if ! command -v kubectl >/dev/null; then
+              echo "Installing K3s..."
+              curl -sfL https://get.k3s.io | sh -
+              
+              # Set up kubectl for non-root user
+              mkdir -p ~/.kube
+              sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+              sudo chown $(id -u):$(id -g) ~/.kube/config
+              chmod 600 ~/.kube/config
+            else
+              echo "K3s already installed."
+            fi
+            
+            # Make sure kubectl uses the right config
+            export KUBECONFIG=~/.kube/config
+            
+            # Verify kubectl works
+            echo "Verifying K3s installation..."
+            kubectl get nodes
+            
+            # 2) Get repository with Kubernetes deployment files
+            mkdir -p ~/app
+            cd ~/app
+            
+            # Check if the repository exists and handle accordingly
+            if [ -d .git ]; then
+              # Repository exists, stash any local changes first
+              echo "Repository exists, stashing local changes and pulling latest..."
+              git config --global --add safe.directory $(pwd)
+              git stash
+              git pull origin main
+            else
+              # Repository doesn't exist or not a git repo, clone fresh
+              echo "Repository doesn't exist or not a git repo, cloning fresh..."
+              # Remove any existing files to ensure clean clone
+              rm -rf * .[^.]*
+              git clone https://github.com/NelisKaars/DigitalTwinAnalyzer.git .
+            fi
+            
+            # 3) Deploy Ditto with Kubernetes using the provided deployment files
+            cd ./ditto-master/deployment/kubernetes
+            
+            # Create nginx configuration maps
+            echo "Creating nginx configuration maps..."
+            kubectl create configmap nginx-conf --from-file=deploymentFiles/nginx/nginx.conf --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create configmap nginx-cors --from-file=deploymentFiles/nginx/nginx-cors.conf --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create configmap nginx-htpasswd --from-file=deploymentFiles/nginx/nginx.htpasswd --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create configmap nginx-index --from-file=deploymentFiles/nginx/index.html --dry-run=client -o yaml | kubectl apply -f -
+
+            # Create Swagger UI API ConfigMap
+            echo "Creating Swagger UI API ConfigMap..."
+            kubectl create configmap swagger-ui-api --from-file=../../documentation/src/main/resources/openapi --dry-run=client -o yaml | kubectl apply -f -
+
+            # Deploy MongoDB (non-stateful for simplicity)
+            echo "Deploying MongoDB..."
+            kubectl apply -f deploymentFiles/mongodb/mongodb.yaml
+            
+            # Wait for MongoDB to be ready
+            echo "Waiting for MongoDB to be ready..."
+            kubectl wait --for=condition=ready pod -l app=mongodb --timeout=300s || true
+            
+            # Deploy Ditto services
+            echo "Deploying Ditto services..."
+            kubectl apply -f deploymentFiles/ditto/
+            
+            # Deploy Swagger UI
+            echo "Deploying Swagger UI..."
+            kubectl apply -f deploymentFiles/swagger/swagger.yaml
+            
+            # Deploy Nginx
+            echo "Deploying Nginx..."
+            kubectl apply -f deploymentFiles/nginx/nginx.yaml
+            
+            # Create NodePort service for external access
+            echo "Creating external access NodePort service..."
+            cat << EOF | kubectl apply -f -
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ditto-external
+            spec:
+              type: NodePort
+              selector:
+                app: nginx
+              ports:
+                - port: 80
+                  nodePort: 8080
+                  protocol: TCP
+            EOF
+            
+            # Wait for all pods to be running
+            echo "Waiting for Ditto pods to start..."
+            kubectl wait --for=condition=ready pod -l app=gateway --timeout=300s || true
+            kubectl wait --for=condition=ready pod -l app=nginx --timeout=300s || true
+            
+            # Show pod status
+            echo "Pod status:"
+            kubectl get pods
+            
+            # Get NodeIP
+            NODE_IP=$(hostname -I | awk '{print $1}')
+            echo "Ditto is now accessible at: http://${NODE_IP}:8080"
+
+            # 4) Create Factory Digital Twin
+            echo "Creating Factory digital twin..."
+            cat << 'EOF' > create-factory-twin.sh
+            #!/bin/bash
+            THING_ID="org.eclipse.ditto:Factory"
+            NODE_IP=$(hostname -I | awk '{print $1}')
+            AUTH="ditto:ditto"
+            AUTH_HEADER=$(echo -n $AUTH | base64)
+            
+            # Wait for API to be accessible
+            echo "Waiting for Ditto API to be accessible..."
+            MAX_RETRIES=30
+            RETRY_COUNT=0
+            RETRY_DELAY=5
+            API_READY=false
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$API_READY" != "true" ]; do
+              STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${NODE_IP}:8080/status || echo "000")
+              if [ "$STATUS_CODE" == "200" ]; then
+                API_READY=true
+                echo "Ditto API is now accessible."
+              else
+                RETRY_COUNT=$((RETRY_COUNT+1))
+                echo "Waiting for Ditto API, attempt ${RETRY_COUNT}/${MAX_RETRIES}..."
+                sleep $RETRY_DELAY
+              fi
+            done
+            
+            if [ "$API_READY" != "true" ]; then
+              echo "Ditto API not accessible after ${MAX_RETRIES} attempts. Continuing anyway..."
+            fi
+            
+            echo "Creating Factory digital twin at http://${NODE_IP}:8080/api/2/things/${THING_ID}"
+            
+            # Create policy first
+            echo "Creating policy..."
+            curl -X PUT -H "Authorization: Basic $AUTH_HEADER" -H "Content-Type: application/json" \
+              "http://${NODE_IP}:8080/api/2/policies/${THING_ID}" \
+              -d '{
+                "entries": {
+                  "owner": {
+                    "subjects": {
+                      "nginx:ditto": {
+                        "type": "nginx basic auth user"
+                      }
+                    },
+                    "resources": {
+                      "thing:/": {
+                        "grant": ["READ", "WRITE"],
+                        "revoke": []
+                      },
+                      "policy:/": {
+                        "grant": ["READ", "WRITE"],
+                        "revoke": []
+                      },
+                      "message:/": {
+                        "grant": ["READ", "WRITE"],
+                        "revoke": []
+                      }
+                    }
+                  }
+                }
+              }'
+            
+            # Create thing with features
+            echo "Creating thing with features..."
+            curl -X PUT -H "Authorization: Basic $AUTH_HEADER" -H "Content-Type: application/json" \
+              "http://${NODE_IP}:8080/api/2/things/${THING_ID}" \
+              -d '{
+                "policyId": "'"$THING_ID"'",
+                "definition": "org.eclipse.ditto:factory:1.0.0",
+                "features": {
+                  "Mixer_0": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_0_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "Mixer_1": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_1_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "Mixer_2": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_2_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "Mixer_3": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_3_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "Mixer_4": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_4_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "Mixer_5": {
+                    "properties": {
+                      "Temperature": 100,
+                      "RPM": 60
+                    }
+                  },
+                  "Mixer_5_AlarmComponent": {
+                    "properties": {
+                      "alarm_status": "NORMAL"
+                    }
+                  },
+                  "WaterTank": {
+                    "properties": {
+                      "flowRate1": 35,
+                      "tankVolume1": 75,
+                      "Status": "NORMAL"
+                    }
+                  },
+                  "FreezerTunnel": {
+                    "properties": {
+                      "Temperature": -15,
+                      "State": "NORMAL"
+                    }
+                  },
+                  "PlasticLiner": {
+                    "properties": {
+                      "RPM": 45,
+                      "Status": "NORMAL"
+                    }
+                  },
+                  "CookieFormer": {
+                    "properties": {
+                      "Rate": 120,
+                      "GoodParts": 98.5,
+                      "Status": "NORMAL"
+                    }
+                  },
+                  "BoxSealer": {
+                    "properties": {
+                      "Speed": 0.8,
+                      "Status": "NORMAL"
+                    }
+                  },
+                  "Conveyor": {
+                    "properties": {
+                      "Speed": 0.8,
+                      "Status": "NORMAL"
+                    }
+                  }
+                }
+              }'
+            
+            echo "Factory digital twin creation complete."
+            EOF
+            
+            chmod +x create-factory-twin.sh
+            ./create-factory-twin.sh
+            
+            # Save backend URL for frontend configuration
+            echo "BACKEND_URL=http://${NODE_IP}:8080" > ~/.backend_url
+
+      - name: Update frontend configuration
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST_FE }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            
+            # Set up SSH key for connecting to backend server
+            if [ ! -f ~/.ssh/id_rsa ]; then
+              mkdir -p ~/.ssh
+              ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+              echo "Generated SSH key for frontend to backend connection"
+            fi
+            
+            # Retrieve SSH public key to be added to authorized_keys on backend
+            SSH_PUB_KEY=$(cat ~/.ssh/id_rsa.pub)
+            
+            # Copy SSH key to backend instance
+            echo "$SSH_PUB_KEY" | ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST_BE }} "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+            
+            # Get the backend URL from the backend instance
+            BACKEND_URL=$(ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST_BE }} "cat ~/.backend_url | cut -d= -f2")
+            echo "Using backend URL: ${BACKEND_URL}"
+            
+            # Update the frontend configuration
+            cd ~/app/3d-visualization-comparison
+            sed -i "s|baseUrl: \"http://[^\"]*\"|baseUrl: \"${BACKEND_URL}\"|g" js/common.js
+            
+            # Show the updated configuration
+            grep -n "baseUrl:" js/common.js
+            
+            # Rebuild and restart the frontend container
+            sudo docker stop dashboard || true
+            sudo docker rm dashboard || true
+            sudo docker build --no-cache -t dashboard .
+            sudo docker run -d --name dashboard -p 80:80 dashboard
+            
+            echo "Frontend updated to use backend at ${BACKEND_URL}"
