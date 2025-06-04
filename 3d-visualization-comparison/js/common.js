@@ -7,7 +7,7 @@
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: 'http://54.217.116.62:8080', // Direct connection to backend
+        baseUrl: 'http://54.217.116.62:8081', // Direct connection to backend gateway port
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',

@@ -217,9 +217,6 @@ services:
         limits:
           memory: 32m
     restart: always
-    environment:
-      - API_URL=http://54.217.116.62:8080/api
-      - WS_URL=ws://54.217.116.62:8080/ws
     logging:
       options:
         max-size: 10m
