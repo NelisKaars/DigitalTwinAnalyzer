@@ -1,0 +1,13 @@
+[Unit]
+Description=Ditto UI Local Proxy
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /home/ec2-user/app/ditto-master/deployment/docker/local-proxy.js
+Restart=always
+User=ec2-user
+Environment=NODE_ENV=production
+WorkingDirectory=/home/ec2-user/app/ditto-master/deployment/docker
+
+[Install]
+WantedBy=multi-user.target
