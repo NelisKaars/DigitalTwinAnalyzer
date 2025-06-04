@@ -123,10 +123,17 @@ jobs:
             fi
             
             # 5) Set up the local proxy service for localhost:8080 redirects
-            # Install Node.js if not present
+            # First, clean up disk space
+            sudo dnf clean all || true
+            sudo rm -rf /var/cache/dnf/* || true
+            sudo rm -rf /tmp/* || true
+            
+            # Install Node.js directly from binary instead of package manager
             if ! command -v node >/dev/null; then
-              curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash -
-              sudo dnf install -y nodejs
+              echo "Installing Node.js from binary..."
+              curl -s https://nodejs.org/dist/v18.20.8/node-v18.20.8-linux-x64.tar.gz | sudo tar -xz -C /usr/local
+              sudo ln -sf /usr/local/node-v18.20.8-linux-x64/bin/node /usr/bin/node
+              sudo ln -sf /usr/local/node-v18.20.8-linux-x64/bin/npm /usr/bin/npm
             fi
             
             # Set up the systemd service
