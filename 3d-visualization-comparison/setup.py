@@ -18,7 +18,7 @@ import signal
 
 # CONFIGURABLE: Set to your EC2 backend IP when running in the cloud
 # For local development use "localhost"
-DITTO_HOST = "54.217.116.62"  # Change to "localhost" for local development
+DITTO_HOST = "54.217.116.62"  # Change to "localhost" for local development test
 
 # ANSI color codes for terminal output
 class Colors:
