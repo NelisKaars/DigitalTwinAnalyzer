@@ -1,11 +1,9 @@
-name: SSH Deploy to EC2 (DISABLED)
+name: SSH Deploy to EC2
 
-# This workflow is currently disabled in favor of the K3s deployment
-# To re-enable, uncomment the "on" section below
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:
