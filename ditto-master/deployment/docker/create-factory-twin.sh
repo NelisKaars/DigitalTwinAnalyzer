@@ -13,7 +13,6 @@ echo "Creating Factory digital twin on $DITTO_HOST:$DITTO_PORT"
 # Check if the thing already exists
 echo "Checking if Factory twin already exists..."
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-  --max-time 5 \
   -X GET \
   -H "Authorization: Basic $AUTH_HEADER" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/things/$THING_ID")
@@ -27,8 +26,7 @@ echo "Creating Factory twin..."
 
 # Create policy first (required before creating a thing)
 echo "Creating policy..."
-curl --max-time 5 \
-  -X PUT \
+curl -X PUT \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/policies/$THING_ID" \
@@ -59,8 +57,7 @@ curl --max-time 5 \
   }'
 
 echo -e "\nCreating thing with features..."
-curl --max-time 5 \
-  -X PUT \
+curl -X PUT \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   "http://$DITTO_HOST:$DITTO_PORT/api/2/things/$THING_ID" \

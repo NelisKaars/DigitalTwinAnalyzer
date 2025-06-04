@@ -49,8 +49,10 @@ jobs:
             
             # Check if the repository exists and handle accordingly
             if [ -d .git ]; then
-              # Repository exists, just pull latest changes
-              echo "Repository exists, pulling latest changes..."
+              # Repository exists, stash any local changes first
+              echo "Repository exists, stashing local changes and pulling latest..."
+              git config --global --add safe.directory $(pwd)
+              git stash
               git pull origin main
             else
               # Repository doesn't exist or not a git repo, clone fresh
@@ -95,8 +97,10 @@ jobs:
             
             # Check if the repository exists and handle accordingly
             if [ -d .git ]; then
-              # Repository exists, just pull latest changes
-              echo "Repository exists, pulling latest changes..."
+              # Repository exists, stash any local changes first
+              echo "Repository exists, stashing local changes and pulling latest..."
+              git config --global --add safe.directory $(pwd)
+              git stash
               git pull origin main
             else
               # Repository doesn't exist or not a git repo, clone fresh
@@ -111,3 +115,9 @@ jobs:
             # Run docker-compose directly from the host machine
             sudo docker-compose down || true
             sudo docker-compose up -d
+            
+            # 4) Initialize the Factory digital twin if script exists
+            if [ -f ./create-factory-twin.sh ]; then
+              chmod +x ./create-factory-twin.sh
+              ./create-factory-twin.sh
+            fi
