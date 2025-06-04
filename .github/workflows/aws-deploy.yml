@@ -113,8 +113,8 @@ jobs:
             # 3) Build & restart backend container
             cd ./ditto-master/deployment/docker/
             # Run docker-compose directly from the host machine
-            sudo docker-compose down || true
-            sudo docker-compose up -d
+            docker-compose down || true
+            docker-compose up -d
             
             # 4) Initialize the Factory digital twin if script exists
             if [ -f ./create-factory-twin.sh ]; then
