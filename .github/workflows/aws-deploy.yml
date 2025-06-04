@@ -19,48 +19,14 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Add EC2 hosts to known_hosts (with retry)
+      - name: Add EC2 hosts to known_hosts
         run: |
           mkdir -p ~/.ssh
-          
-          # Try frontend host with retries
-          for i in {1..5}; do
-            echo "Attempt $i: Adding frontend host to known_hosts..."
-            if ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts 2>/dev/null; then
-              echo "Frontend host added successfully"
-              break
-            else
-              echo "Failed to add frontend host. Retrying in 5 seconds..."
-              sleep 5
-            fi
-            if [ $i -eq 5 ]; then
-              echo "WARNING: Could not add frontend host after 5 attempts. Continuing anyway..."
-            fi
-          done
-          
-          # Try backend host with retries
-          for i in {1..5}; do
-            echo "Attempt $i: Adding backend host to known_hosts..."
-            if ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts 2>/dev/null; then
-              echo "Backend host added successfully"
-              break
-            else
-              echo "Failed to add backend host. Retrying in 5 seconds..."
-              sleep 5
-            fi
-            if [ $i -eq 5 ]; then
-              echo "WARNING: Could not add backend host after 5 attempts. Continuing anyway..."
-            fi
-          done
-          
-          # Always add GitHub
+          # Use -o StrictHostKeyChecking=no to automatically accept new keys
+          ssh-keyscan -H ${{ secrets.EC2_HOST_FE }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST_BE }} >> ~/.ssh/known_hosts
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-          
-          # Set permissions and continue regardless of failures above
-          chmod 644 ~/.ssh/known_hosts || true
-          
-          # Create empty known_hosts if it doesn't exist yet
-          touch ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v0.1.6
@@ -74,7 +40,10 @@ jobs:
             # 1) Install Docker & Git if missing
             if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
               sudo dnf update -y
-              sudo dnf install -y docker git
+              sudo dnf install -y git
+              
+              # Install Docker using Amazon Linux specific method
+              sudo dnf install -y docker
               sudo systemctl enable --now docker
             fi
 
@@ -117,31 +86,32 @@ jobs:
             echo "===== DISK INFORMATION ====="
             df -h /
             
-            # Extend filesystem if needed to use newly allocated space
-            sudo growpart /dev/xvda 1 || true
-            sudo xfs_growfs -d / || true
-            
-            echo "===== DISK INFORMATION AFTER EXTENSION ====="
-            df -h /
+            # Skip filesystem extension on Amazon Linux 2023 - different process may be needed
             
             # Aggressive disk cleanup 
             echo "===== CLEANING UP DISK SPACE ====="
             sudo dnf clean all || true
             sudo rm -rf /var/cache/dnf/* || true
-            sudo docker system prune -af || true
-            sudo rm -rf /tmp/* || true
             
             # 1) Install Docker & Git if missing
-            if ! command -v git >/dev/null || ! command -v docker >/dev/null; then
+            if ! command -v git >/dev/null; then
               sudo dnf update -y
               sudo dnf install -y git
-
-              # Install Docker Engine
-              curl -fsSL https://get.docker.com | sudo sh
+            fi
+            
+            # Install Docker using Amazon Linux specific method
+            if ! command -v docker >/dev/null; then
+              echo "Installing Docker using Amazon Linux method..."
+              sudo dnf install -y docker
               sudo systemctl enable --now docker
-
-              sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
+              sudo usermod -aG docker ec2-user
+              
+              # Install Docker Compose
+              if ! command -v docker-compose >/dev/null; then
+                sudo dnf install -y curl
+                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+              fi
             fi
 
             # 2) Prepare app directory and get the latest code
@@ -209,14 +179,194 @@ jobs:
             echo "===== CONTAINER STATUS ====="
             sudo docker ps
             
-            # 6) Initialize the Factory digital twin
-            if [ -f ./create-factory-twin.sh ]; then
-              echo "===== CREATING FACTORY TWIN ====="
+            # 6) Create create-factory-twin.sh if it doesn't exist
+            if [ ! -f ./create-factory-twin.sh ]; then
+              echo "===== CREATING FACTORY TWIN SCRIPT ====="
+              cat << 'EOF' > ./create-factory-twin.sh
+              #!/bin/bash
+              THING_ID="org.eclipse.ditto:Factory"
+              AUTH="ditto:ditto"
+              
+              # Wait for API to be accessible
+              echo "Waiting for Ditto API to be accessible..."
+              MAX_RETRIES=30
+              RETRY_COUNT=0
+              RETRY_DELAY=5
+              API_READY=false
+              
+              while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$API_READY" != "true" ]; do
+                STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/status || echo "000")
+                if [ "$STATUS_CODE" == "200" ]; then
+                  API_READY=true
+                  echo "Ditto API is now accessible."
+                else
+                  RETRY_COUNT=$((RETRY_COUNT+1))
+                  echo "Waiting for Ditto API, attempt ${RETRY_COUNT}/${MAX_RETRIES}..."
+                  sleep $RETRY_DELAY
+                fi
+              done
+              
+              if [ "$API_READY" != "true" ]; then
+                echo "Ditto API not accessible after ${MAX_RETRIES} attempts. Continuing anyway..."
+              fi
+              
+              echo "Creating Factory digital twin at http://localhost/api/2/things/${THING_ID}"
+              
+              # Create policy first
+              curl -X PUT -u $AUTH -H "Content-Type: application/json" \
+                http://localhost/api/2/policies/${THING_ID} \
+                -d '{
+                  "entries": {
+                    "owner": {
+                      "subjects": {
+                        "nginx:ditto": {
+                          "type": "nginx basic auth user"
+                        }
+                      },
+                      "resources": {
+                        "thing:/": {
+                          "grant": ["READ", "WRITE"],
+                          "revoke": []
+                        },
+                        "policy:/": {
+                          "grant": ["READ", "WRITE"],
+                          "revoke": []
+                        },
+                        "message:/": {
+                          "grant": ["READ", "WRITE"],
+                          "revoke": []
+                        }
+                      }
+                    }
+                  }
+                }'
+              
+              # Create thing with features
+              curl -X PUT -u $AUTH -H "Content-Type: application/json" \
+                http://localhost/api/2/things/${THING_ID} \
+                -d '{
+                  "policyId": "'"$THING_ID"'",
+                  "definition": "org.eclipse.ditto:factory:1.0.0",
+                  "features": {
+                    "Mixer_0": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_0_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "Mixer_1": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_1_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "Mixer_2": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_2_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "Mixer_3": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_3_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "Mixer_4": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_4_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "Mixer_5": {
+                      "properties": {
+                        "Temperature": 100,
+                        "RPM": 60
+                      }
+                    },
+                    "Mixer_5_AlarmComponent": {
+                      "properties": {
+                        "alarm_status": "NORMAL"
+                      }
+                    },
+                    "WaterTank": {
+                      "properties": {
+                        "flowRate1": 35,
+                        "tankVolume1": 75,
+                        "Status": "NORMAL"
+                      }
+                    },
+                    "FreezerTunnel": {
+                      "properties": {
+                        "Temperature": -15,
+                        "State": "NORMAL"
+                      }
+                    },
+                    "PlasticLiner": {
+                      "properties": {
+                        "RPM": 45,
+                        "Status": "NORMAL"
+                      }
+                    },
+                    "CookieFormer": {
+                      "properties": {
+                        "Rate": 120,
+                        "GoodParts": 98.5,
+                        "Status": "NORMAL"
+                      }
+                    },
+                    "BoxSealer": {
+                      "properties": {
+                        "Speed": 0.8,
+                        "Status": "NORMAL"
+                      }
+                    },
+                    "Conveyor": {
+                      "properties": {
+                        "Speed": 0.8,
+                        "Status": "NORMAL"
+                      }
+                    }
+                  }
+                }'
+              
+              echo "Factory digital twin creation complete."
+              EOF
+              
               chmod +x ./create-factory-twin.sh
-              ./create-factory-twin.sh
             fi
             
-            # 7) Save and report the backend URL for the frontend
+            # 7) Initialize the Factory digital twin
+            echo "===== CREATING FACTORY TWIN ====="
+            chmod +x ./create-factory-twin.sh
+            ./create-factory-twin.sh
+            
+            # 8) Save and report the backend URL for the frontend
             BACKEND_IP=$(hostname -I | awk '{print $1}')
             echo "===== BACKEND READY ====="
             echo "Backend URL: http://${BACKEND_IP}:8080"
