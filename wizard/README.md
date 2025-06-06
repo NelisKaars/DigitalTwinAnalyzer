@@ -15,7 +15,7 @@ The visualization selection wizard guides you through a series of questions abou
 
 ## How to Use
 
-1. Open `dt_visualization_wizard.html` in a modern web browser
+1. Open `dt_visualization_wizard.html` in a web browser
 2. Answer the questions about your project requirements and constraints
 3. Review the recommended visualization technique and rationale
 4. If a CAD-based approach is recommended, you can use the 3D visualization comparison tool to evaluate specific frameworks

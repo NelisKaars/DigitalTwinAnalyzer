@@ -1,0 +1,207 @@
+\chapter{Collaborative Comparison Framework of 3D Digital Twin Visualization Techniques}
+\label{ch:implementation}
+This chapter describes the practical implementation of the  \href{https://github.com/NelisKaars/DigitalTwinAnalyzer.git}{Digital Twin Visualization Framework}\footnote{\href{https://github.com/NelisKaars/DigitalTwinAnalyzer.git}{Digital Twin Visualization Framework}} developed in this research. It covers the roots of application, requirements, a system overview, architecture design, component integration, and technical decisions made during the implementation phase. The implementation serves as a basis for evaluating the performance implications of different visualization frameworks in the context of digital twins.
+
+\section{CAD-Based Digital Twin Frameworks}
+In the context of digital twins, a variety of visualization strategies can be employed depending on the domain, data availability, and intended user interaction. These strategies range from low-fidelity schematic views and sensor dashboards to immersive simulations and highly detailed 3D environments \cite{mahsa2025}. As found in the previous study, CAD-based visualization plays a critical role, especially in industries where spatial geometry, material precision, and component relationships are central to operations. 
+
+The upcoming performance analysis focuses on testing and evaluating open-source digital twin frameworks, especially using CAD-based visualization. CAD-based visualization is chosen because many digital twin applications in several domains require detailed geometric accuracy, as precise spatial representation directly influences operational effectiveness and decision-making. Additionally, CAD visualization seamlessly integrates with real-time integrates with real-time data streams, which transforms traditionally static CAD assets into dynamic visual environments. Furthermore, the visualization of complex CAD data imposes high demands on system performance, scalability, and latency. Such challenges make CAD-based scenarios highly suitable for precise benchmarking and performance evaluation of different frameworks. Lastly, the widespread adoption and standardization of CAD formats provide a reliable foundation for a comparative analysis.
+
+\subsection{Digital Twin State Management Platforms}
+While CAD-based visualization focuses on the graphical representation of physical assets, an effective digital twin system also requires a reliable back-end to manage the twin's state and enable real-time data synchronization. These platforms maintain the logical structure and current state of digital twins, providing interfaces for data ingestion, storage, and access \cite{uslander2022}. In this study, Eclipse Ditto and FIWARE are considered as two representative open-source state management platforms capable of integrating with front-end visualization layers.
+
+\subsubsection{Eclipse Ditto}
+\begin{wrapfigure}{r}{0.5\textwidth}
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/ditto_architecture.png}
+    \caption{Service architecture of Ditto: Ditto services in blue and context with nginx as reverse proxy and MongoDB }
+    \label{fig:ditto_architecture}
+\end{wrapfigure}
+Eclipse Ditto is an open-source framework developed under the Eclipse IoT initiative, designed to manage digital twins of physical devices in connected environments. It enables the modeling, interaction, and synchronization of digital representations (referred to as “things”) that mirror the state and behavior of their physical counterparts. Ditto serves as a middleware layer in IoT architectures to abstract the complexity of device communication and expose a unified API interface for interacting with digital twins. This makes it easier for developers and systems to work with IoT assets using familiar web protocols and data structures \cite{EclipseDittoOverview}.
+
+At the core of Eclipse Ditto lies an information model. Each digital twin, or “thing,” encapsulates metadata, state information, and a modular structure of “features,” which represent logical components or capabilities of the physical device. This model supports dynamic updates, enabling real-time state synchronization as data is received from the physical world. Ditto also includes a policy system to define fine-grained access control over twins and their features. These policies govern read/write permissions and can be adapted to support multi-tenant scenarios, role-based access, or secure integration with external systems \cite{EclipseDittoOverview}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\linewidth]{figures/ditto_messages.png}
+    \caption{Handling of messages by Eclipse Ditto}
+    \label{fig:ditto_messages}
+\end{figure}
+
+Ditto is composed of several microservices that handle the main aspects of twin management as shown in Figure \ref{fig:ditto_architecture}. These include the Things service (for managing twin instances), the Things-Search service (for querying and indexing), the Policies service (for access control), and the Connectivity service, which facilitates integration with external message brokers and protocols such as AMQP, MQTT, CoAP, or HTTP (shown in Figure \ref{fig:ditto_messages}). The platform uses MongoDB for storage and includes a reverse proxy layer (often Nginx) to expose its API securely. Ditto can be accessed using both REST APIs and WebSockets, making it suitable for both traditional request-response interactions and event-driven systems \cite{EclipseDittoOverview}.
+
+One of the key advantages of Eclipse Ditto is its ability to decouple physical devices from application logic. This decoupling enables more modular and flexible architectures, where digital twins serve as a stable interface regardless of underlying device communication patterns. Moreover, Ditto supports both live data synchronization and historical state tracking, which is essential for applications involving simulation, diagnostics, and predictive maintenance.
+
+For the purposes of this research, Ditto plays a central role in the back-end architecture of the system under test. It acts as the stateful broker between real-time data streams and front-end visualization tools such as Unity or Three.js. By abstracting the data model into standardized digital representations, Eclipse Ditto allows these front-ends to be implemented independently of the specific IoT protocols or data sources. This makes it possible to evaluate visualization performance in isolation, while still maintaining a realistic and responsive data backend.
+
+\subsection{3D Visualization and Rendering Frameworks}
+The visualization of digital twins requires rendering engines capable of displaying complex CAD models in real-time while maintaining high performance and interactivity. These engines serve as the front-end components in a digital twin architecture, often consuming data provided by state management platforms such as Eclipse Ditto or FIWARE. The frameworks discussed below each support standard CAD file formats—such as GLTF, FBX, or OBJ—and offer varying degrees of flexibility, realism, and integration capabilities.
+
+\subsubsection{Three.js}
+Three.js is an open-source JavaScript library for rendering 3D graphics in the browser using WebGL. It is lightweight, highly customizable, and supports a wide range of CAD-compatible formats, including GLTF and OBJ. Three.js is particularly well-suited for web-based digital twins that require cross-platform accessibility without the overhead of standalone applications. Although it lacks built-in physics or advanced shading found in game engines like Unity, it offers sufficient functionality for real-time model updates, interactive inspection, and telemetry overlays.
+
+\subsubsection{Babylon.js}
+Babylon.js is another WebGL-based rendering engine with broader feature support compared to Three.js, including a full material system, real-time lighting, animations, and physics integration. It natively supports GLTF and other 3D formats and provides an extensive set of APIs for real-time interactions, making it a viable choice for browser-based digital twin applications. Babylon.js integrates well with modern frontend frameworks and can be used in combination with state backends via REST APIs or WebSockets.
+
+\subsubsection{PlayCanvas}
+PlayCanvas is an open-source WebGL game engine designed for building high-performance 3D applications directly in the browser. It supports key CAD-compatible file formats such as GLTF and FBX and provides built-in tools for scene management, animation, physics, and real-time lighting. PlayCanvas is particularly well-suited for digital twin applications that benefit from a visual editor and modular component system, enabling rapid prototyping and iteration. The engine also supports REST and WebSocket integration, making it possible to connect real-time telemetry or sensor data to 3D representations. Its emphasis on lightweight deployment and cross-device compatibility aligns well with browser-based digital twin scenarios where both interactivity and visual fidelity are critical.
+
+\section{User Story Analysis}
+\label{sec:user-story-analysis}
+Before designing the system architecture, a set of representative user stories was formulated to reflect real-world stakeholders interacting with Digital Twin visualization environments. These user stories guided architectural decisions, user interface components, and the selection of key functionalities such as framework switching, live data interaction, and performance monitoring.
+
+\begin{itemize}
+    \item \textbf{User Story 1: Digital Twin Developer} \\
+    As a digital twin developer, I want to compare multiple visualization frameworks using a common model so I can evaluate their performance and suitability for my application domain.
+
+    \item \textbf{User Story 2: UX Researcher} \\
+    As a UX researcher, I want to assess interaction smoothness and responsiveness across different frameworks to provide usability feedback.
+
+    \item \textbf{User Story 3: Stakeholder or Analyst} \\
+    As a stakeholder, I want to visualize component states and data updates in real time on different visualization frameworks to understand the operational behavior of the system.
+
+    \item \textbf{User Story 4: System Integrator} \\
+    As a system integrator, I want to verify that the frameworks can reliably bind to external data sources and reflect updates correctly across the user interface.
+
+    \item \textbf{User Story 5: Collaborator} \\
+    As a collaborating engineer or operator, I want to interact with the same Digital Twin environment as others to enable synchronized evaluation and discussion.
+\end{itemize}
+
+These user roles and tasks shaped the requirements for a modular, cloud-deployable comparison dashboard. The next section outlines the system architecture designed to fulfill these user needs.
+
+\section{System Overview and Architecture}
+The primary objective of the implemented system is to provide a robust, scalable, and interactive 3D visualization environment capable of accurately representing a real-time synchronized digital twin. Specifically, the implemented framework aims to meet the following goals:
+
+\begin{itemize}
+    \item Provide real-time visualization and control of digital twin properties.
+    \item Enable performance metric collection for comparative analysis.
+    \item Facilitate integration with a digital twin backend for data synchronization.
+    \item Support multiple visualization frameworks for comprehensive performance benchmarking.
+    \item Ensure ease of deployment, particularly through cloud services such as AWS. PlayCanvas is particularly well-suited for digital twin applications that benefit from a visual editor and modular component system, enabling rapid prototyping and iteration. The engine also supports REST and WebSocket integration, making it possible to connect real-time telemetry or sensor data to 3D representations. Its emphasis on lightweight deployment and cross-device compatibility aligns well with browser-based digital twin scenarios where both interactivity and visual fidelity are critical.
+\end{itemize}
+
+To meet these goals, the system was designed with a modular architecture consisting of clearly separated backend and frontend components. The architecture is illustrated in Figure~\ref{fig:system_architecture}, highlighting the relationships and data flows between the individual components.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/system_architecture.png}
+    \caption{System architecture of the implemented Digital Twin visualization framework}
+    \label{fig:system_architecture}
+\end{figure}
+
+The backend component utilizes Eclipse Ditto, which manages all state synchronization, device data handling and user interactions through its REST API and WebSocket communication. The Ditto backend, running in Docker (or Podman) containers, is responsible for representing the Digital Twin's live state including various properties.
+
+The frontend provides an interactive user interface implemented as a web dashboard. It allows users to switch between different 3D visualization frameworks and observe real-time changes. Core modules include:
+
+\begin{itemize}
+    \item \textbf{Dashboard UI}: Main user interface containing framework selection controls, property interaction widgets, simulation controls and performance metrics visualization.
+    \item \textbf{Common JavaScript Modules}: Including DittoAPI for backend communication, ModelLoader for unified CAD file handling, DTProperties for property-to-visual mapping, FactoryScene for scene management, Metrics.js for collecting and visualizing performance metrics and simulation.js for the performance measurement.
+    \item \textbf{Visualization Framework Modules}: Specific implementations for Three.js,  Babylon.js and Unity WebGL.
+\end{itemize}
+
+Real-time synchronization between the frontend and backend leverages REST API polling and WebSocket notifications to ensure smooth updates to visualization components. Additionally, a Python-based simulation script generates dynamic CSV data to emulate live digital twin behavior which ensures realistic performance evaluations.
+
+Deployment considerations played a key role in architectural decisions, particularly the use of Podman containers for consistent and manageable backend environments and deployment to AWS for scalable and secure operations.
+
+The designed architecture provides flexibility in integration and evaluation of various visualization frameworks and their performance, crucial for an effective comparative analysis between all of them.
+
+\subsection{Open Source Contribution and Licensing}
+\label{sec:licensing}
+
+To support reuse, transparency, and contribution from the wider community, the complete benchmarking platform developed in this study is released under the \href{https://www.apache.org/licenses/LICENSE-2.0}{Apache License 2.0}. This open-source license allows developers and researchers to freely use, modify, and redistribute the platform with minimal restrictions to encourage further experimentation and extension.
+
+The implementation integrates existing open-source components including:
+\begin{itemize}
+    \item \textbf{Eclipse Ditto:} for Digital Twin state management and data synchronization.
+    \item \textbf{aws-cookiefactory-dt:} for the reference 3D Digital Twin model.
+    \item \textbf{Three.js, Babylon.js, and PlayCanvas:} for framework-level visualization.
+\end{itemize}
+
+While the platform originally references AWS-based deployment examples, the actual environment is made to work locally, with simple integration steps for hosting. All developed components, including the dashboard, simulation engine, and framework abstraction layer, are released under the Apache License 2.0 to maximize long-term accessibility and collaboration.
+
+\section{Frontend Architecture}
+The frontend architecture plays a crucial role to provide a user-friendly and interactive experience for managing and visualizing digital twin states. It was designed with a modular structure which separates user interface logic from visualization rendering components. This design ensures scalability, maintainability, and ease of framework integration. The main architectural components of the frontend are the Dashboard UI and Visualization Framework Integration, which together facilitate comprehensive interaction with digital twins.
+
+\subsection{Dashboard UI}
+The Dashboard UI serves as the primary user interface for interacting with digital twins to provide a centralized point of control and visualization. The dashboard incorporates several UI components, all designed using HTML, CSS, and JavaScript.
+
+\begin{itemize}
+\item \textbf{Framework Selector}: Allows users to switch between visualization frameworks such as Three.js, Babylon.js, and Unity WebGL. This selector is implemented with event listeners that trigger updates in visualization modules (See Figure \ref{fig:select-perform-dashboard}).
+
+\item \textbf{Performance Metrics Panel}: Displays real-time performance metrics including frames per second (FPS), memory usage, initial load times, and data binding latency. These metrics are continuously updated through polling and event-driven updates facilitated by the Metrics.js module (See Figure \ref{fig:select-perform-dashboard}).
+
+\item \textbf{Simulation controls}: Provides interactive controls for the simulation to measure the performance of the selected framework. The simulation "walks" through the Digital Twin whilst triggering real-time updates in the Digital Twin visualization (See Figure \ref{fig:simu-control-dashboard}).
+
+\item \textbf{Digital Twin Controls}: Provides interactive controls to manipulate properties such as RPM, temperature, and alarm status. Each interaction immediately propagates to the Eclipse Ditto backend, triggering real-time updates in the digital twin visualization (See Figure \ref{fig:simu-control-dashboard}).
+
+\item \textbf{Interaction Model}: Utilizes an event-driven model to ensure responsive and efficient updates. DOM events generated from user actions such as button clicks or slider adjustments trigger JavaScript functions within dashboard.js, which manage UI states and communication with visualization modules.
+\end{itemize}
+
+Debouncing strategies and optimized polling management are implemented in dashboard.js to ensure UI responsiveness without overwhelming backend services with frequent requests.
+
+\subsection{Visualization Framework Integration}
+The Visualization Framework Integration component is responsible for connecting selected 3D rendering engines with the shared frontend logic and backend data streams. Each framework is wrapped in its own initialization and update handler that conforms to a common interface defined in \texttt{common.js}, which ensures that switching frameworks does not break application logic.
+
+When a user selects a visualization engine via the dashboard, the corresponding framework module is dynamically loaded and instantiated. Initialization includes loading the 3D CAD model using \texttt{ModelLoader}, applying scene configuration via \texttt{FactoryScene}, and binding live property updates through \texttt{DTProperties}. Runtime performance metrics are concurrently collected through instrumentation hooks embedded in each framework’s render loop.
+
+To maintain consistency across engines, all frameworks use the same input model, and adopt a standardized mapping for camera setup, lighting, and interaction controls. Framework-specific adapters abstract differences in rendering APIs and expose unified methods for actions such as scene reset, property update, or camera repositioning.
+
+This architecture allows direct comparison of performance, interactivity, and visual fidelity across different rendering engines under identical simulation and data binding conditions. It also enables runtime switching of frameworks without requiring a full page reload, thus supporting seamless experimentation and benchmarking within the same UI session.
+
+\subsection{Common JavaScript Modules}
+To facilitate modularity and maintainability across the visualization frameworks, the system architecture uses a set of shared JavaScript modules. These modules form essential frontend logic; from backend communication to 3D model management and performance monitoring.
+
+The \texttt{common.js} module acts as the central utility library and exposes four key functionalities. First, the \textbf{DittoAPI} component streamlines communication with the Eclipse Ditto backend. It wraps WebSocket and REST interfaces into reusable methods, handling connection lifecycle events and subscribing to real-time property updates.
+
+\textbf{ModelLoader} manages the loading and preparation of 3D CAD models. It standardizes the handling of GLTF and OBJ files, applies pre-processing techniques such as mesh simplification and material normalization and supports level-of-detail adjustments.
+
+\textbf{DTProperties} component maps digital twin property updates to visual responses within the 3D scene. This module outlines the transformation logic, which enables property data to drive animations, color gradients, or other dynamic elements across frameworks.
+
+Finally, the \textbf{FactoryScene} module provides a structured interface for scene setup and control. It handles camera configuration, lighting presets, model placement and exposes utility functions to add or remove elements from the scene at runtime.
+
+Beyond shared utilities, the \texttt{dashboard.js} module governs UI interactions. It binds user input controls—sliders, buttons, and selectors—to backend updates and visualization state changes. Debouncing mechanisms are employed to prevent excessive backend calls and ensure smooth updates during rapid user input. Furthermore, this module uses framework switching logic whilst maintaining the application state and reinitializes visualization environments when needed.
+
+To support runtime benchmarking, \texttt{metrics.js} collects and displays key performance metrics such as frame rate, memory usage, and binding latency. These metrics are captured using the browser’s performance API and custom instrumentation hooks injected into the rendering loop. Collected data is visualized in the dashboard and can be exported in CSV format for offline analysis. It also handles the metrics collections whilst running the simulation to eventually give an average over runtime.
+
+\section{Backend Architecture}
+The backend architecture of the Digital Twin Visualization Framework is designed around Eclipse Ditto as the core digital twin state management platform, enhanced with custom deployment configurations to support cloud-based visualization benchmarking. The architecture follows a microservices pattern with containerized deployment, enabling scalable and reliable data synchronization between physical device representations and frontend visualization frameworks.
+
+\subsection{Eclipse Ditto Integration and Customization}
+The backend leverages Eclipse Ditto's microservices architecture, which consists of specialized services for different aspects of digital twin management. The deployment configuration includes the standard Ditto services: Things service for managing digital twin instances, Policies service for access control, Things-Search service for querying capabilities, Connectivity service for external protocol integration, and Gateway service for API orchestration. These services communicate through a cluster network and persist data in a MongoDB database.
+
+Critical customizations were implemented to support the visualization comparison framework. The nginx reverse proxy configuration was modified to include CORS support for cross-origin requests, enabling frontend applications hosted on separate domains to communicate with the Ditto backend. Additionally, a custom UI environment configuration file was introduced to resolve localhost connection issues when deploying in cloud environments, ensuring the Ditto web interface correctly connects to the backend services regardless of deployment location.
+
+\subsection{Factory Digital Twin Initialization}
+A specialized initialization script establishes the Factory digital twin structure upon backend startup. This script creates a comprehensive digital representation of an industrial cookie production facility, including six mixer units with temperature and RPM monitoring, water tank systems with flow rate and volume sensors, freezer tunnel temperature control, plastic liner rotation monitoring, cookie former production metrics, and conveyor system speed tracking. Each component includes both operational properties and alarm status indicators, providing a realistic industrial scenario for visualization testing.
+
+The initialization process includes policy creation for access control, ensuring proper authentication and authorization for all digital twin interactions. The script implements retry logic and health checking to ensure Ditto services are fully operational before attempting twin creation, preventing initialization failures during system startup.
+
+\subsection{Data Synchronization and API Exposure}
+The backend exposes both REST and WebSocket endpoints for real-time data interaction. The REST API enables standard CRUD operations on digital twin properties, allowing frontend applications to query current states and update component values. WebSocket connections provide real-time notification capabilities, ensuring visualization frameworks receive immediate updates when digital twin properties change.
+
+Authentication is enforced through basic HTTP authentication with configurable credentials. The nginx proxy layer handles authentication verification and forwards authenticated requests to the appropriate Ditto services. CORS headers are strategically configured to allow cross-origin requests from visualization frontends while maintaining security boundaries.
+
+\subsection{Containerized Deployment and Scalability}
+The entire backend stack is deployed using Docker containers orchestrated through Docker Compose. This approach ensures consistent deployment across different environments and simplifies scaling operations. Each Ditto service runs in its own container with defined resource limits and health checks, enabling automatic restart capabilities and resource management.
+
+The containerized architecture supports both local development and cloud deployment scenarios. Environment-specific configurations are managed through mounted configuration files and environment variables, allowing the same container images to operate in different deployment contexts without modification. This design facilitates easy migration between development, testing, and production environments while maintaining configuration consistency.
+
+\subsubsection{Automated CI/CD Pipeline}
+To support continuous integration and deployment, the system includes a GitHub Actions workflow that automates the deployment process to AWS EC2 instances. The workflow is triggered on every push to the main branch and orchestrates deployments to separate frontend and backend EC2 instances, ensuring isolation between presentation and data management layers.
+
+The deployment pipeline performs several critical functions. For the frontend deployment, it clones the latest repository code, builds a Docker container for the dashboard application, and deploys it to the designated frontend EC2 instance. The backend deployment follows a similar pattern but includes additional steps for Eclipse Ditto service orchestration. The workflow ensures Docker and Docker Compose are installed on the target instances, pulls the latest code changes, rebuilds containers to incorporate updates, and automatically initializes the Factory digital twin upon successful deployment.
+
+Security is maintained through encrypted SSH keys stored as GitHub Secrets, enabling secure communication with EC2 instances without exposing credentials in the codebase. The workflow includes error handling and verification steps to ensure deployment success and provides status feedback through the GitHub interface. This automated approach significantly reduces manual deployment overhead while ensuring consistency across deployments and enabling rapid iteration during development and testing phases.
+
+\section{Digital Twin Model}
+The digital twin model utilized in this system is derived from the AWS IoT TwinMaker Cookie Factory sample available on GitHub\footnote{\href{https://github.com/aws-samples/aws-iot-twinmaker-samples}{AWS IoT CookieFactory}}. Rather than replicating the entire semantic structure and backend logic provided by TwinMaker, this project adopts a visual-first approach where only the provided GLB model assets are used for rendering purposes.
+
+The Cookie Factory model serves as a visually rich and industrially contextual 3D scene with a variety of machines and components found in food production facilities. These include conveyor systems, packaging machines, mixers, storage units, and control consoles. This level of structural detail provides a good foundation for testing different visualization frameworks under conditions that more closely resemble real-world deployments, avoiding the overhead of full IoT integration.
+
+The imported GLB files are loaded into each frontend framework using a shared asset loader. Once instantiated in the 3D environment, the model serves as the spatial context in which interactive overlays and state-driven animations are embedded. Real-time data updates, simulated through backend scripts and synchronized via Eclipse Ditto, is visualized by highlighting active machines, triggering alarms, or displaying telemetry data in overlays.
+
+By decoupling the visual model from a rigid backend schema, this setup provides greater flexibility in focusing on rendering performance, user interaction latency, and frontend responsiveness. The GLB-based cookie factory model thus acts as a complex yet controlled testbed for benchmarking digital twin visualizations across frameworks.
+
+Each visualization framework is initialized with the shared GLB model and bound to real-time state data through a standardized API. State changes trigger animations and visual feedback elements including color changes, rotation adjustments, or overlay displays. Three.js and Babylon.js use JavaScript-based bindings with direct access to WebSocket updates, whereas Unity WebGL integrates via a JavaScript bridge that injects property changes into the Unity runtime.
+
+To optimize performance, each framework uses its own mechanisms for frame capping, scene pruning, and level-of-detail management. Model loading is deferred where possible, and non-essential geometry is gathered dynamically to maintain smooth frame rates during peak update periods.

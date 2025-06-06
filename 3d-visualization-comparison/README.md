@@ -1,45 +1,77 @@
-# 3D Visualization Framework Comparison
+# 3D Digital Twin Visualization Framework Comparison
 
-This project provides a framework for comparing different 3D visualization technologies for digital twin applications.
-It connects to Eclipse Ditto for real-time data and renders 3D models with various frameworks.
+This framework provides a comprehensive platform for comparing different 3D visualization technologies in the context of digital twin applications.
+It connects to Eclipse Ditto for real-time digital twin state management and renders an industrial cookie factory model using multiple visualization frameworks to enable performance benchmarking and comparative analysis.
+
+## Overview
+
+The framework enables researchers and developers to evaluate the performance characteristics of different WebGL-based 3D visualization technologies when used for digital twin applications.
+All frameworks render the same industrial factory model and connect to the same Eclipse Ditto backend, ensuring fair comparison conditions.
 
 ## Frameworks Being Tested
 
-1. **Three.js** - WebGL-based JavaScript 3D library
-2. **Babylon.js** - Real-time 3D engine using WebGL
-3. **Unity WebGL** - Unity game engine exported to WebGL
-4. **A-Frame** - Web framework for building VR experiences
-5. **PlayCanvas** - WebGL Game Engine
+1. **Three.js** - Lightweight WebGL-based JavaScript 3D library
+2. **Babylon.js** - Feature-rich real-time 3D engine with advanced rendering capabilities
+3. **PlayCanvas** - WebGL game engine with integrated editor and component system
 
-## Project Setup
+## Architecture
 
-Each framework has its own implementation in a separate folder, but they all:
-- Connect to the same Ditto backend
-- Use the same 3D models
-- Implement the same basic functionality 
-- Track the same performance metrics
+The framework follows a modular architecture with clear separation between:
+
+- **Dashboard UI** (`dashboard.html`) - Unified control interface for framework selection, digital twin controls, and performance monitoring
+- **Common JavaScript Modules** (`js/`) - Shared utilities for Ditto API communication, model loading, metrics collection, and scene management
+- **Framework Implementations** (`frameworks/`) - Specialized renderers for each visualization technology
+- **3D Models** (`models/`) - Cookie factory GLB assets and scene definitions
+
+## Digital Twin Integration
+
+### Eclipse Ditto Backend
+
+The framework connects to a containerized Eclipse Ditto deployment that manages the factory digital twin state.
+The digital twin represents:
+
+- **6 Mixer Units** - Temperature (°C) and RPM monitoring with alarm components
+- **Water Tank System** - Flow rate and volume sensors
+- **Freezer Tunnel** - Temperature control and status monitoring
+- **Production Line** - Cookie former, plastic liner, box sealer, and conveyor systems
+
+### Real-time Data Synchronization
+
+All frameworks implement the same data binding approach:
+
+1. **REST API Polling** - Periodic state retrieval from Ditto (configurable interval)
+2. **Property Mapping** - Digital twin properties drive visual elements (colors, animations, indicators)
+3. **Bidirectional Updates** - User interactions update digital twin state in real-time
+4. **Automatic Pause/Resume** - Polling suspends during user interactions to prevent conflicts
 
 ## Getting Started
 
-### Quick Setup
+### Prerequisites
 
-This project includes a setup automation tool that helps you quickly get started:
+- Docker and Docker Compose
+- Web browser with WebGL support
+- Eclipse Ditto backend running (see `../ditto-master/deployment/docker/`)
 
-1. Start Ditto and create the digital twin:
+### Local Development Setup
+
+#### Option 1: Automated Setup (Recommended)
+
+This project includes a setup automation tool for quick local deployment:
+
+1. **Start Ditto and create the digital twin:**
    ```bash
    ./setup.py start
    ```
 
-2. In a separate terminal, start the development server:
+2. **In a separate terminal, start the development server:**
    ```bash
    ./setup.py dev-server
    ```
 
-3. Access the dashboard:
-   http://localhost:8000/3d-visualization-comparison/dashboard.html
+3. **Access the dashboard:**
+   Open `http://localhost:8000/dashboard.html` in your browser
 
-### Other Commands
-
+**Other setup.py commands:**
 ```bash
 # Stop the Ditto backend
 ./setup.py stop
@@ -54,50 +86,108 @@ This project includes a setup automation tool that helps you quickly get started
 ./setup.py info
 ```
 
+#### Option 2: Manual Setup
+
+1. **Start Eclipse Ditto Backend:**
+   ```bash
+   cd ../ditto-master/deployment/docker/
+   docker-compose up -d
+   ./create-factory-twin.sh
+   ```
+
+2. **Serve the Application:**
+   ```bash
+   # Simple HTTP server (Python)
+   python -m http.server 8000
+   
+   # Or using Node.js
+   npx http-server
+   ```
+
+3. **Access the Dashboard:**
+   Open `http://localhost:8000/dashboard.html` in your browser
+
+### Cloud Deployment
+
+The framework supports automated deployment to AWS EC2 through GitHub Actions:
+- **Frontend Instance** - Serves the dashboard and visualization assets
+- **Backend Instance** - Runs Eclipse Ditto services and MongoDB
+- **Automated CI/CD** - Triggered on repository updates
+
+For AWS deployment, see the main project documentation and GitHub Actions workflow configuration.
+
 ## Using the Dashboard
 
-The dashboard provides a unified interface for:
+### Framework Selection
 
-1. Switching between different visualization frameworks:
-   - Select from Three.js, Babylon.js, or Unity WebGL
+Switch between Three.js, Babylon.js, and PlayCanvas implementations in real-time without page reload.
+Each framework loads the same factory model and connects to identical data sources.
 
-2. Controlling the digital twin in real-time:
-   - Adjust temperature (0-200°C)
-   - Control RPM (0-120)
-   - Set alarm status (NORMAL, ACTIVE, ACKNOWLEDGED)
-   - All changes take effect immediately
+### Digital Twin Controls
 
-3. Viewing performance metrics:
-   - FPS (Frames Per Second)
-   - Memory usage
-   - Load time
-   - Data binding latency
+- **Mixer Properties** - Adjust temperature (50-200°C) and RPM (20-120) for any mixer unit
+- **System Status** - Control alarm states (NORMAL, ACTIVE, ACKNOWLEDGED)
+- **Factory Components** - Modify water tank levels, conveyor speeds, and production rates
+- **Real-time Updates** - All changes propagate immediately to the visualization
 
-## Performance Testing
+### Performance Monitoring
 
-The testing framework tracks these metrics across all visualization libraries:
-- **FPS (Frames Per Second)** - Rendering performance
-- **Memory Usage** - RAM consumption during operation
-- **Loading Time** - Initial loading and asset processing time
-- **CPU Usage** - Processing overhead
-- **Data Binding Latency** - Time to update visualizations when data changes
-- **Interaction Responsiveness** - Response time to user input
+- **FPS (Frames Per Second)** - Real-time rendering performance
+- **Memory Usage** - Browser memory consumption tracking
+- **Load Time** - Framework initialization and model loading duration
+- **Data Binding Latency** - Time between property updates and visual changes
+- **Simulation Metrics** - Automated performance testing with camera movement
 
-## How the Integration Works
+## Performance Testing Features
 
-Each visualization connects to Eclipse Ditto via the REST API to:
-1. Get the digital twin state
-2. Subscribe to changes (using polling)
-3. Map digital twin properties to visual elements:
-   - Temperature affects light color and intensity
-   - RPM controls animation speed
-   - Alarm status changes indicator color
+### Automated Simulation
 
-## Test Scenarios
+The framework includes an automated camera tour that:
 
-All frameworks implement these standard test scenarios:
-1. **Static Visualization** - Basic 3D model rendering
-2. **Real-time Data Binding** - Mapping Ditto data to visual properties
-3. **Animation and Transitions** - Smooth transitions between states
-4. **Interactive Controls** - User manipulation of the 3D scene
-5. **Scene Complexity Scaling** - Testing with increasing object counts
+- Moves through predefined waypoints in the factory scene
+- Triggers property updates at regular intervals
+- Collects performance metrics throughout the simulation
+- Provides comparative performance data across frameworks
+
+### Metrics Collection
+
+Performance data is captured using:
+
+- **Browser Performance API** - High-precision timing measurements
+- **Memory Usage Monitoring** - Heap size and garbage collection tracking
+- **Custom Instrumentation** - Framework-specific rendering loop hooks
+- **CSV Export** - Performance data export for offline analysis
+
+## File Structure
+
+```
+3d-visualization-comparison/
+├── dashboard.html              # Main application interface
+├── index.html                 # Framework landing page
+├── Dockerfile                 # Container deployment configuration
+├── css/styles.css             # Dashboard styling
+├── js/
+│   ├── common.js              # Ditto API, model loading, utilities
+│   ├── dashboard.js           # UI interactions and state management
+│   ├── metrics.js             # Performance monitoring
+│   ├── simulation.js          # Automated testing scenarios
+│   └── ...
+├── frameworks/
+│   ├── threejs/visualizer.js  # Three.js implementation
+│   ├── babylonjs/visualizer.js# Babylon.js implementation
+│   └── playcanvas/visualizer.js# PlayCanvas implementation
+└── models/CookieFactory/      # 3D assets and scene definitions
+```
+
+## Contributing
+
+This framework is designed for extensibility:
+
+- **Add New Frameworks** - Implement the common interface in `frameworks/`
+- **Extend Metrics** - Add custom performance measurements in `metrics.js`
+- **Enhance Models** - Include additional 3D assets in `models/`
+- **Improve Scenarios** - Expand automated testing in `simulation.js`
+
+## License
+
+Released under the Apache License 2.0. See the root directory for full license information.
