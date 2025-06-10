@@ -722,6 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * Start the automated simulation
      */
     function startSimulation() {
+        // Update state
+        dashboardState.isSimulationActive = true;
+        dashboardState.simulationType = 'normal';
+
         // Disable controls during simulation
         setSimulationControlsState(true);
         
@@ -734,9 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start the simulation with the active framework instance
         Simulation.start(dashboardState.activeInstance);
         
-        // Update state
-        dashboardState.isSimulationActive = true;
-        dashboardState.simulationType = 'normal';
+
         
         // Show the timer at 00:00
         updateSimulationTimer(0);
@@ -746,6 +748,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * Start the stress test simulation for performance testing
      */
     function startStressTest() {
+        // Update state
+        dashboardState.isSimulationActive = true;
+        dashboardState.simulationType = 'stress-test';
+
         // Disable controls during simulation
         setSimulationControlsState(true);
         
@@ -757,10 +763,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Start the stress test with the active framework instance
         Simulation.startStressTest(dashboardState.activeInstance);
-        
-        // Update state
-        dashboardState.isSimulationActive = true;
-        dashboardState.simulationType = 'stress-test';
         
         // Update UI to show stress test mode
         document.getElementById('simulation-mode-label').textContent = 'Mode: Stress Test - Rapid Mixer Updates';
@@ -805,28 +807,28 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Update the simulation progress bar and timer
      * @param {number} progress - Progress value between 0 and 1
+     * @param {string} simulationType - Type of simulation ('stress-test' or 'normal')
      */
-    function updateSimulationProgress(progress) {
-        // Update progress bar based on simulation type
-        const simulationType = dashboardState.simulationType;
-        const progressFillId = simulationType === 'stress-test' ? 'stress-test-progress-fill' : 'simulation-progress-fill';
-        const timerId = simulationType === 'stress-test' ? 'stress-test-timer' : 'simulation-timer';
+    function updateSimulationProgress(progress, simulationType = null) {
+        // Use simulationType parameter if provided, otherwise fall back to dashboard state
+        const simType = dashboardState.simulationType;
         
-        const progressFill = document.getElementById(progressFillId);
-        const timerElement = document.getElementById(timerId);
-        
-        if (progressFill) {
-            const percent = Math.round(progress * 100);
-            progressFill.style.width = `${percent}%`;
-        }
-        
-        // Update timer display
-        if (timerElement) {
-            const elapsed = Simulation.config.duration * progress;
-            const minutes = Math.floor(elapsed / 60);
-            const secs = Math.floor(elapsed % 60);
-            const timeStr = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            timerElement.textContent = timeStr;
+        if (simType === 'stress-test') {
+            // Update stress test progress bar
+            const progressFill = document.getElementById('stress-test-progress-fill');
+            
+            if (progressFill) {
+                const percent = Math.round(progress * 100);
+                progressFill.style.width = `${percent}%`;
+            }
+        } else {
+            // Update normal simulation progress bar
+            const progressFill = document.getElementById('normal-simulation-progress-fill');
+            
+            if (progressFill) {
+                const percent = Math.round(progress * 100);
+                progressFill.style.width = `${percent}%`;
+            }
         }
     }
     
@@ -836,13 +838,16 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function updateSimulationTimer(seconds) {
         const simulationType = dashboardState.simulationType;
-        const timerId = simulationType === 'stress-test' ? 'stress-test-timer' : 'simulation-timer';
+        const timerId = simulationType === 'stress-test' ? 'stress-test-timer' : 'normal-simulation-timer';
         const timerElement = document.getElementById(timerId);
         
         if (timerElement) {
+            const totalDuration = simulationType === 'stress-test' ? 30 : 90;
             const minutes = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
-            const timeStr = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            const totalMins = Math.floor(totalDuration / 60);
+            const totalSecs = totalDuration % 60;
+            const timeStr = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} / ${totalMins.toString().padStart(2, '0')}:${totalSecs.toString().padStart(2, '0')}`;
             timerElement.textContent = timeStr;
         }
     }
@@ -879,28 +884,33 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {boolean} isRunning - Whether simulation is running
      */
     function setSimulationControlsState(isRunning) {
-        const simulationType = dashboardState.simulationType || 'normal';
-        
-        if (simulationType === 'normal') {
-            // Enable/disable normal simulation controls only
-            document.getElementById('start-simulation').disabled = isRunning;
-            document.getElementById('pause-simulation').disabled = !isRunning;
-            document.getElementById('stop-simulation').disabled = !isRunning;
+        if (isRunning) {
+            // Disable both start buttons when any simulation is running
+            document.getElementById('start-simulation').disabled = true;
+            document.getElementById('start-stress-test').disabled = true;
             
-            // Don't affect stress test controls
-            document.getElementById('start-stress-test').disabled = false;
-            document.getElementById('pause-stress-test').disabled = true;
-            document.getElementById('stop-stress-test').disabled = true;
-        } else if (simulationType === 'stress-test') {
-            // Enable/disable stress test controls only
-            document.getElementById('start-stress-test').disabled = isRunning;
-            document.getElementById('pause-stress-test').disabled = !isRunning;
-            document.getElementById('stop-stress-test').disabled = !isRunning;
-            
-            // Don't affect normal simulation controls
+            // Enable pause/stop buttons based on simulation type - FIXED LOGIC
+            if (dashboardState.simulationType === 'stress-test') {
+                // Enable stress test controls, disable normal controls
+                document.getElementById('pause-stress-test').disabled = false;
+                document.getElementById('stop-stress-test').disabled = false;
+                document.getElementById('pause-simulation').disabled = true;
+                document.getElementById('stop-simulation').disabled = true;
+            } else {
+                // Enable normal controls, disable stress test controls
+                document.getElementById('pause-simulation').disabled = false;
+                document.getElementById('stop-simulation').disabled = false;
+                document.getElementById('pause-stress-test').disabled = true;
+                document.getElementById('stop-stress-test').disabled = true;
+            }
+        } else {
+            // Re-enable start buttons and disable all pause/stop buttons when not running
             document.getElementById('start-simulation').disabled = false;
+            document.getElementById('start-stress-test').disabled = false;
             document.getElementById('pause-simulation').disabled = true;
             document.getElementById('stop-simulation').disabled = true;
+            document.getElementById('pause-stress-test').disabled = true;
+            document.getElementById('stop-stress-test').disabled = true;
         }
         
         // Disable framework selection during simulation
@@ -921,173 +931,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose the simulation object to window for potential external access
     window.Simulation = Simulation;
 });
-
-// Initialize simulation with proper callbacks
-Simulation.initialize({
-    duration: 90, // 1:30 minutes
-    onProgress: (progress, simulationType) => {
-        updateSimulationProgress(progress, simulationType);
-        
-        // Update appropriate button states based on simulation type
-        const status = Simulation.getStatus();
-        if (simulationType === 'stress-test') {
-            updateStressTestButtons(status.isRunning, status.isPaused);
-        } else {
-            updateNormalSimulationButtons(status.isRunning, status.isPaused);
-        }
-    },
-    onComplete: () => {
-        console.log('Simulation completed');
-        // Reset both button sets when simulation completes
-        updateNormalSimulationButtons(false, false);
-        updateStressTestButtons(false, false);
-    }
-});
-
-// Normal simulation event handlers
-document.getElementById('start-simulation-btn')?.addEventListener('click', () => {
-    const activeFramework = getActiveFramework();
-    if (!activeFramework) {
-        showNotification('Please select a framework first', 'error');
-        return;
-    }
-    
-    const status = Simulation.getStatus();
-    if (status.isPaused) {
-        Simulation.resume();
-    } else {
-        // Make sure stress test is disabled for normal simulation
-        if (Simulation.stressTest.enabled) {
-            Simulation.stopStressTest();
-        }
-        Simulation.start(activeFramework);
-    }
-    
-    updateNormalSimulationButtons(true, false);
-});
-
-document.getElementById('pause-simulation-btn')?.addEventListener('click', () => {
-    Simulation.pause();
-    updateNormalSimulationButtons(true, true);
-});
-
-document.getElementById('stop-simulation-btn')?.addEventListener('click', () => {
-    Simulation.stop();
-    updateNormalSimulationButtons(false, false);
-});
-
-// Stress test event handlers
-document.getElementById('start-stress-test-btn')?.addEventListener('click', () => {
-    const activeFramework = getActiveFramework();
-    if (!activeFramework) {
-        showNotification('Please select a framework first', 'error');
-        return;
-    }
-    
-    const status = Simulation.getStatus();
-    if (status.isPaused && Simulation.stressTest.enabled) {
-        Simulation.resume();
-    } else {
-        // Make sure normal simulation is stopped before starting stress test
-        if (Simulation.config.isRunning && !Simulation.stressTest.enabled) {
-            Simulation.stop();
-        }
-        Simulation.startStressTest(activeFramework);
-    }
-    
-    updateStressTestButtons(true, false);
-});
-
-document.getElementById('pause-stress-test-btn')?.addEventListener('click', () => {
-    Simulation.pause();
-    updateStressTestButtons(true, true);
-});
-
-document.getElementById('stop-stress-test-btn')?.addEventListener('click', () => {
-    Simulation.stopStressTest();
-    updateStressTestButtons(false, false);
-});
-
-// Update button states for normal simulation only
-function updateNormalSimulationButtons(isRunning, isPaused) {
-    const startBtn = document.getElementById('start-simulation-btn');
-    const pauseBtn = document.getElementById('pause-simulation-btn');
-    const stopBtn = document.getElementById('stop-simulation-btn');
-    
-    if (startBtn) {
-        startBtn.style.display = (!isRunning || isPaused) ? 'inline-block' : 'none';
-        startBtn.textContent = isPaused ? 'Resume' : 'Start Normal Simulation';
-        startBtn.disabled = false;
-    }
-    
-    if (pauseBtn) {
-        pauseBtn.style.display = (isRunning && !isPaused) ? 'inline-block' : 'none';
-        pauseBtn.disabled = false;
-    }
-    
-    if (stopBtn) {
-        stopBtn.style.display = isRunning ? 'inline-block' : 'none';
-        stopBtn.disabled = false;
-    }
-}
-
-// Update button states for stress test only
-function updateStressTestButtons(isRunning, isPaused) {
-    const startBtn = document.getElementById('start-stress-test-btn');
-    const pauseBtn = document.getElementById('pause-stress-test-btn');
-    const stopBtn = document.getElementById('stop-stress-test-btn');
-    
-    if (startBtn) {
-        startBtn.style.display = (!isRunning || isPaused) ? 'inline-block' : 'none';
-        startBtn.textContent = isPaused ? 'Resume' : 'Start Stress Test';
-        startBtn.disabled = false;
-    }
-    
-    if (pauseBtn) {
-        pauseBtn.style.display = (isRunning && !isPaused) ? 'inline-block' : 'none';
-        pauseBtn.disabled = false;
-    }
-    
-    if (stopBtn) {
-        stopBtn.style.display = isRunning ? 'inline-block' : 'none';
-        stopBtn.disabled = false;
-    }
-}
-
-// Update simulation progress
-function updateSimulationProgress(progress, simulationType = 'normal') {
-    const percentage = Math.round(progress * 100);
-    
-    if (simulationType === 'stress-test') {
-        // Update stress test progress
-        const stressProgressElement = document.getElementById('stress-test-progress');
-        if (stressProgressElement) {
-            stressProgressElement.style.width = `${percentage}%`;
-        }
-    } else {
-        // Update normal simulation progress
-        const normalProgressElement = document.getElementById('simulation-progress');
-        if (normalProgressElement) {
-            normalProgressElement.style.width = `${percentage}%`;
-        }
-    }
-}
-
-// Update simulation timer display
-function updateSimulationTimer(elapsedTime) {
-    const minutes = Math.floor(elapsedTime / 60);
-    const seconds = Math.floor(elapsedTime % 60);
-    const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    
-    // Update normal simulation timer
-    const normalTimerElement = document.getElementById('simulation-timer');
-    if (normalTimerElement) {
-        normalTimerElement.textContent = timeString;
-    }
-    
-    // Update stress test timer
-    const stressTimerElement = document.getElementById('stress-test-timer');
-    if (stressTimerElement) {
-        stressTimerElement.textContent = timeString;
-    }
-}

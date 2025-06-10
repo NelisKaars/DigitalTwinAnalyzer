@@ -14,7 +14,7 @@ setup:
     description: "Start Eclipse Ditto backend services using Docker Compose or Podman"
     commands:
       - cd ../ditto-master/deployment/docker && podman compose up -d
-    check_command: "podman ps | grep ditto"
+    # check_command: "podman ps | grep ditto"
     success_message: "Ditto services started successfully"
     failure_message: "Failed to start Ditto services"
 

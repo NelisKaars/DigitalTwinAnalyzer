@@ -368,17 +368,32 @@ const Simulation = {
             this.config.lastDataUpdate = now;
         }
         
-        // Call progress callback with simulation type information
+        // Call progress callback
         const progress = this.config.elapsedTime / this.config.duration;
         if (this.callbacks.onProgress) {
-            this.callbacks.onProgress(progress, this.stressTest.enabled ? 'stress-test' : 'normal');
+            this.callbacks.onProgress(progress);
         }
         
         // Update timer display directly here to ensure it works
         if (typeof updateSimulationTimer === 'function') {
-            updateSimulationTimer(this.config.elapsedTime);
+            updateSimulationTimer(this.config.elapsedTime, this.stressTest.enabled ? 'stress-test' : 'normal');
         } else if (window.dashboardState && typeof window.dashboardState.updateSimulationTimer === 'function') {
-            window.dashboardState.updateSimulationTimer(this.config.elapsedTime);
+            window.dashboardState.updateSimulationTimer(this.config.elapsedTime, this.stressTest.enabled ? 'stress-test' : 'normal');
+        } else {
+            // Direct timer update as fallback
+            const simulationType = this.stressTest.enabled ? 'stress-test' : 'normal';
+            const timerId = simulationType === 'stress-test' ? 'stress-test-timer' : 'normal-simulation-timer';
+            const timerElement = document.getElementById(timerId);
+            
+            if (timerElement) {
+                const totalDuration = simulationType === 'stress-test' ? 30 : 90;
+                const minutes = Math.floor(this.config.elapsedTime / 60);
+                const secs = Math.floor(this.config.elapsedTime % 60);
+                const totalMins = Math.floor(totalDuration / 60);
+                const totalSecs = totalDuration % 60;
+                const timeStr = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} / ${totalMins.toString().padStart(2, '0')}:${totalSecs.toString().padStart(2, '0')}`;
+                timerElement.textContent = timeStr;
+            }
         }
         
         // Continue animation loop
