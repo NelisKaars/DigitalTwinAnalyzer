@@ -119,7 +119,8 @@ class PlayCanvasVisualizer {
         this.cameraEntity.addComponent("camera", {
             clearColor: new pc.Color(0.95, 0.95, 0.95),
             nearClip: 0.1,
-            farClip: 1000
+            farClip: 1000,
+            fov: 75 // Set field of view to 75 degrees to match Three.js and Babylon.js
         });
         this.camera = this.cameraEntity.camera;
         
@@ -268,9 +269,10 @@ class PlayCanvasVisualizer {
                 });
             }
 
-            // Load mixers (just a few for performance)
-            // We'll limit to 6 mixers to keep performance reasonable
-            const mixersToLoad = Math.min(6, this.factoryScene.mixers.length);
+            // Load mixers - load all available mixers
+            // Use the maxMixers from FactoryModelLoader configuration
+            const loadingSequence = FactoryModelLoader.getLoadingSequence();
+            const mixersToLoad = Math.min(loadingSequence.maxMixers, this.factoryScene.mixers.length);
             for (let i = 0; i < mixersToLoad; i++) {
                 const mixerNode = this.factoryScene.mixers[i];
                 this.loadGLTFModel(paths.models.mixer, (model) => {
@@ -546,8 +548,6 @@ class PlayCanvasVisualizer {
      * Create floating tags for all components to display property values
      */
     createFloatingTags() {
-        // Get positions from our indicators to use for tags
-        
         // Create tag mapping objects that will be passed to TagManager
         const mixerTags = this.mixerModels.map((mixer, index) => {
             // Get the indicator position if available
@@ -630,92 +630,30 @@ class PlayCanvasVisualizer {
     }
     
     /**
-     * Get the world position of a position indicator
-     * @param {string} indicatorId - ID of the indicator
-     * @returns {pc.Vec3} Position of the indicator or null if not found
+     * Create a debug sphere at a specific position (for debugging tag positioning)
+     * @param {pc.Vec3} position - World position for the debug sphere
+     * @param {string} name - Name for the debug sphere
      */
-    getIndicatorPosition(indicatorId) {
-        if (!this.positionIndicators || !this.positionIndicators[indicatorId]) {
-            return null;
-        }
+    createDebugSphere(position, name) {
+        if (!position) return;
         
-        const indicator = this.positionIndicators[indicatorId];
-        const worldPos = new pc.Vec3();
+        // Create a red sphere entity for debugging
+        const debugSphere = new pc.Entity(name);
+        debugSphere.addComponent("model", {
+            type: "sphere",
+            material: this.createMaterial(new pc.Color(1, 0, 0)) // Red color
+        });
         
-        // Get the world position
-        indicator.getWorldTransform().getTranslation(worldPos);
-        return worldPos;
-    }
-    
-    /**
-     * Get matching indicator name for a tag ID
-     * @param {string} tagId - The tag ID to get indicator for
-     * @returns {string|null} - The indicator name or null if no match found
-     */
-    getMatchingIndicatorName(tagId) {
-        // For mixer tags
-        if (tagId.startsWith('Mixer_')) {
-            const mixerIndex = tagId.split('_')[1];
-            return `mixerIndicator_${mixerIndex}`;
-        }
+        // Make it small but visible
+        debugSphere.setLocalScale(0.3, 0.3, 0.3);
         
-        // For other components
-        const mapping = {
-            'WaterTank': 'waterTankIndicator',
-            'FreezerTunnel': 'freezerIndicator',
-            'PlasticLiner': 'linerIndicator',
-            'CookieFormer': 'formerIndicator',
-            'BoxSealer': 'sealerIndicator',
-            'ConveyorSystem': 'conveyorIndicator'
-        };
+        // Position at the exact tag position
+        debugSphere.setPosition(position.x, position.y, position.z);
         
-        return mapping[tagId] || null;
-    }
-
-    /**
-     * Get world position of an entity
-     * @param {pc.Entity} entity - Entity to get position for
-     * @returns {pc.Vec3} World position
-     */
-    getWorldPosition(entity) {
-        // Check if entity exists and has the necessary methods
-        if (!entity) {
-            console.warn("Attempted to get position of null entity");
-            return new pc.Vec3(0, 0, 0);
-        }
-
-        // Use the correct method to get world position based on what's available
-        const pos = new pc.Vec3();
+        // Add to the scene
+        this.app.root.addChild(debugSphere);
         
-        // Different PlayCanvas entities might have different methods
-        if (entity.getWorldTransform) {
-            // Get world transform matrix
-            const worldTransform = new pc.Mat4();
-            entity.getWorldTransform(worldTransform);
-            
-            // Extract position from the transform matrix
-            worldTransform.getTranslation(pos);
-        } else if (entity.getPosition) {
-            // For entities that have a direct getPosition method
-            entity.getPosition(pos);
-        } else {
-            // Fallback to local position if nothing else works
-            if (entity.getLocalPosition) {
-                entity.getLocalPosition(pos);
-            } else if (entity.localPosition) {
-                pos.copy(entity.localPosition);
-            }
-        }
-        
-        return pos;
-    }
-
-    /**
-     * Handle window resize
-     */
-    onWindowResize() {
-        if (!this.isInitialized) return;
-        // PlayCanvas handles resize automatically with FILLMODE_FILL_WINDOW
+        console.log(`Debug sphere '${name}' created at position:`, position.x, position.y, position.z);
     }
 
     /**
@@ -1110,24 +1048,6 @@ class PlayCanvasVisualizer {
     }
 
     /**
-     * Update tag positions for all floating tags
-     */
-    updateTagPositions() {
-        // Use the tag objects to update positions
-        Object.entries(this.tagObjects).forEach(([id, object]) => {
-            if (object && object.object3D) {
-                // Get viewport position for this object
-                const pos = this.getTagViewportPosition(object);
-                
-                // Update tag position using the tag manager
-                if (this.tagManager) {
-                    this.tagManager.updateTagPosition(id, pos.x, pos.y, pos.inFront && pos.inBounds, pos.distance);
-                }
-            }
-        });
-    }
-
-    /**
      * Calculate viewport position for a tag
      * @param {Object} object - Tag object with object3D and optional worldPosition
      * @returns {Object} Object with x, y screen coordinates, inFront flag, inBounds flag, and distance
@@ -1148,35 +1068,130 @@ class PlayCanvasVisualizer {
             worldPos = this.getWorldPosition(object.object3D);
         }
         
-        // Calculate screen position based on world position
-        const tempVec = new pc.Vec3();
-        tempVec.copy(worldPos);
-        
         // Calculate distance from camera to object
         const cameraPos = new pc.Vec3();
-        this.cameraEntity.getPosition(cameraPos);
-        const distance = cameraPos.distance(tempVec);
+        this.cameraEntity.getWorldTransform().getTranslation(cameraPos);
+        const distance = cameraPos.distance(worldPos);
         
-        // Project 3D position to 2D screen space
-        camera.worldToScreen(tempVec, tempVec);
+        // Get actual canvas dimensions
+        const canvasWidth = this.app.graphicsDevice.width;
+        const canvasHeight = this.app.graphicsDevice.height;
         
-        // Check if object is in front of camera
-        const inFront = tempVec.z > 0;
+        // Use a simple approach: camera.worldToScreen but handle edge cases safely
+        try {
+            const screenPos = new pc.Vec3();
+            camera.worldToScreen(worldPos, screenPos);
+            
+            // Simple validation: if coordinates are way out of bounds, skip this frame
+            if (Math.abs(screenPos.x) > canvasWidth * 100 || Math.abs(screenPos.y) > canvasHeight * 100) {
+                // Return off-screen position instead of crashing
+                return { x: -1000, y: -1000, inFront: false, inBounds: false, distance: distance };
+            }
+            
+            // Check if object is in front of camera
+            // For PlayCanvas, positive z in screen space usually means in front
+            const inFront = screenPos.z > 0;
+            
+            // Use screen coordinates directly (PlayCanvas returns pixel coordinates)
+            const screenX = screenPos.x;
+            const screenY = screenPos.y;
+            
+            // Check if object is within screen bounds
+            const inBounds = screenX >= 0 && screenX <= canvasWidth &&
+                            screenY >= 0 && screenY <= canvasHeight;
+            
+            return {
+                x: screenX,
+                y: screenY,
+                inFront: inFront,
+                inBounds: inBounds,
+                distance: distance
+            };
+            
+        } catch (error) {
+            console.warn("Error in worldToScreen calculation:", error);
+            // Return safe fallback values
+            return { x: -1000, y: -1000, inFront: false, inBounds: false, distance: distance };
+        }
+    }
+
+    /**
+     * Update tag positions for all floating tags
+     */
+    updateTagPositions() {
+        // Use the tag objects to update positions
+        Object.entries(this.tagObjects).forEach(([id, object]) => {
+            if (object && object.object3D) {
+                // Get viewport position for this object
+                const pos = this.getTagViewportPosition(object);
+                
+                // Update tag position using the tag manager
+                if (this.tagManager) {
+                    this.tagManager.updateTagPosition(id, pos.x, pos.y, pos.inFront && pos.inBounds, pos.distance);
+                }
+            }
+        });
+    }
+
+    /**
+     * Get the position of an indicator by its ID
+     * @param {string} indicatorId - ID of the indicator to get position for
+     * @returns {pc.Vec3|null} World position of the indicator or null if not found
+     */
+    getIndicatorPosition(indicatorId) {
+        if (!this.positionIndicators || !this.positionIndicators[indicatorId]) {
+            return null;
+        }
         
-        // Adjust screen coordinates to account for canvas size
-        const screenX = tempVec.x;
-        const screenY = tempVec.y;
+        const worldPos = new pc.Vec3();
+        this.positionIndicators[indicatorId].getWorldTransform().getTranslation(worldPos);
+        return worldPos;
+    }
+
+    /**
+     * Get world position of a PlayCanvas entity
+     * @param {pc.Entity} entity - PlayCanvas entity to get position for
+     * @returns {pc.Vec3} World position of the entity
+     */
+    getWorldPosition(entity) {
+        if (!entity) return new pc.Vec3(0, 0, 0);
         
-        // Check if object is within screen bounds
-        const inBounds = screenX >= 0 && screenX <= this.app.graphicsDevice.width &&
-                        screenY >= 0 && screenY <= this.app.graphicsDevice.height;
-        
-        return {
-            x: screenX,
-            y: screenY,
-            inFront: inFront,
-            inBounds: inBounds,
-            distance: distance
-        };
+        const worldPos = new pc.Vec3();
+        entity.getWorldTransform().getTranslation(worldPos);
+        return worldPos;
+    }
+
+    /**
+     * Get matching indicator name for a component ID
+     * @param {string} componentId - Component ID to get indicator name for
+     * @returns {string|null} Indicator name or null if not found
+     */
+    getMatchingIndicatorName(componentId) {
+        switch(componentId) {
+            case 'WaterTank':
+                return 'waterTankIndicator';
+            case 'FreezerTunnel':
+                return 'freezerIndicator';
+            case 'PlasticLiner':
+                return 'linerIndicator';
+            case 'CookieFormer':
+                return 'formerIndicator';
+            case 'BoxSealer':
+                return 'sealerIndicator';
+            case 'ConveyorSystem':
+                return 'conveyorIndicator';
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Handle window resize events
+     */
+    onWindowResize() {
+        if (this.app && this.container) {
+            const rect = this.container.getBoundingClientRect();
+            this.app.resizeCanvas(rect.width, rect.height);
+        }
     }
 }

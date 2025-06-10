@@ -13,7 +13,7 @@ const FactoryModelLoader = {
             // Order of component loading - allows other frameworks to follow the same sequence
             sequence: ['environment', 'waterTank', 'cookieLines', 'mixers'],
             // Number of mixer models to load (for performance)
-            maxMixers: 6
+            maxMixers: 26
         };
     },
     
@@ -139,7 +139,7 @@ const FactoryModelLoader = {
      */
     checkAllFactoryModelsLoaded(loadState) {
         const requiredComponentCount = 2 + loadState.factoryScene.cookieLines.length; // Environment + WaterTank + Lines
-        const expectedMixerCount = Math.min(6, loadState.factoryScene.mixers.length);
+        const expectedMixerCount = Math.min(26, loadState.factoryScene.mixers.length);
         const loadedComponentCount = (loadState.factoryEnvironment ? 1 : 0) +
             (loadState.waterTankObject ? 1 : 0) +
             loadState.cookieLines.length;
@@ -162,7 +162,7 @@ const FactoryModelLoader = {
             (cookieLines || 0);
         
         return loadedComponentCount >= requiredComponentCount && 
-               (mixers || 0) >= Math.min(maxMixerCount, 6);
+               (mixers || 0) >= Math.min(maxMixerCount, 26);
     }
 };
 

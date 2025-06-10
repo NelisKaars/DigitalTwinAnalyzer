@@ -53,22 +53,49 @@
                 <button id="download-metrics" class="btn">Download Metrics CSV</button>
             </div>
             
-            <!-- Added simulation control panel -->
+            <!-- Updated simulation control panel with separate modes -->
             <div class="simulation-panel">
                 <h2>Simulation Controls</h2>
                 <p class="control-note">Run automated camera &amp; data simulation</p>
                 
-                <div class="simulation-buttons">
-                    <button id="start-simulation" class="btn btn-primary">Start Simulation</button>
-                    <button id="pause-simulation" class="btn btn-secondary" disabled>Pause</button>
-                    <button id="stop-simulation" class="btn btn-danger" disabled>Stop</button>
+                <!-- Normal Simulation Section -->
+                <div class="simulation-mode-section">
+                    <h3>Normal Simulation</h3>
+                    <p class="mode-description">90-second factory tour with scripted events</p>
+                    <div class="simulation-buttons">
+                        <button id="start-simulation" class="btn btn-primary">Start Normal Simulation</button>
+                        <button id="pause-simulation" class="btn btn-secondary" disabled>Pause</button>
+                        <button id="stop-simulation" class="btn btn-danger" disabled>Stop</button>
+                    </div>
+                    <div class="simulation-status" id="normal-simulation-status">
+                        <div class="simulation-progress">
+                            <div id="normal-simulation-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="normal-simulation-timer" class="simulation-timer">00:00 / 01:30</div>
+                    </div>
                 </div>
                 
-                <div class="simulation-status">
-                    <div class="simulation-progress">
-                        <div id="simulation-progress-fill"></div>
+                <!-- Stress Test Section -->
+                <div class="simulation-mode-section">
+                    <h3>Stress Test</h3>
+                    <p class="mode-description">30-second mixer room focus with rapid updates (5ms intervals)</p>
+                    <div class="simulation-buttons">
+                        <button id="start-stress-test" class="btn btn-warning">Start Stress Test</button>
+                        <button id="pause-stress-test" class="btn btn-secondary" disabled>Pause</button>
+                        <button id="stop-stress-test" class="btn btn-danger" disabled>Stop</button>
                     </div>
-                    <div id="simulation-timer">00:00</div>
+                    <div class="simulation-status" id="stress-test-status">
+                        <div class="simulation-progress">
+                            <div id="stress-test-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="stress-test-timer" class="simulation-timer">00:00 / 00:30</div>
+                    </div>
+                </div>
+                
+                <div class="simulation-info">
+                    <div class="simulation-mode">
+                        <span id="simulation-mode-label">Mode: Ready</span>
+                    </div>
                 </div>
             </div>
             
@@ -122,6 +149,26 @@
                             <option value="Mixer_3">Mixer 3</option>
                             <option value="Mixer_4">Mixer 4</option>
                             <option value="Mixer_5">Mixer 5</option>
+                            <option value="Mixer_6">Mixer 6</option>
+                            <option value="Mixer_7">Mixer 7</option>
+                            <option value="Mixer_8">Mixer 8</option>
+                            <option value="Mixer_9">Mixer 9</option>
+                            <option value="Mixer_10">Mixer 10</option>
+                            <option value="Mixer_11">Mixer 11</option>
+                            <option value="Mixer_12">Mixer 12</option>
+                            <option value="Mixer_13">Mixer 13</option>
+                            <option value="Mixer_14">Mixer 14</option>
+                            <option value="Mixer_15">Mixer 15</option>
+                            <option value="Mixer_16">Mixer 16</option>
+                            <option value="Mixer_17">Mixer 17</option>
+                            <option value="Mixer_18">Mixer 18</option>
+                            <option value="Mixer_19">Mixer 19</option>
+                            <option value="Mixer_20">Mixer 20</option>
+                            <option value="Mixer_21">Mixer 21</option>
+                            <option value="Mixer_22">Mixer 22</option>
+                            <option value="Mixer_23">Mixer 23</option>
+                            <option value="Mixer_24">Mixer 24</option>
+                            <option value="Mixer_25">Mixer 25</option>
                         </select>
                     </div>
                     

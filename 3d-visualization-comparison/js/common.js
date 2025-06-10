@@ -7,7 +7,7 @@
 const DittoAPI = {
     // Default settings
     settings: {
-        baseUrl: 'http://54.217.116.62:8080', // Changed back to port 8080
+        baseUrl: 'http://localhost:8080', // Changed to local Ditto instance
         thingId: 'org.eclipse.ditto:Factory', // Always use Factory as the default
         username: 'ditto',
         password: 'ditto',
@@ -152,7 +152,7 @@ const DittoAPI = {
                 });
                 
                 // Initialize Mixer features
-                for (let i = 0; i < 6; i++) {
+                for (let i = 0; i < 26; i++) { // Initialize all 26 mixers
                     // Create mixer feature
                     await this.updateProperty(`Mixer_${i}`, 'Temperature', 100);
                     await this.updateProperty(`Mixer_${i}`, 'RPM', 60);

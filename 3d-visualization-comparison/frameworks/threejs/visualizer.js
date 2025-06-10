@@ -176,9 +176,10 @@ class ThreeJSVisualizer {
                 });
             }
 
-            // Load mixers (just a few for performance)
-            // We'll limit to 6 mixers to keep performance reasonable
-            const mixersToLoad = Math.min(6, this.factoryScene.mixers.length);
+            // Load mixers - load all available mixers
+            // Use the maxMixers from FactoryModelLoader configuration
+            const loadingSequence = FactoryModelLoader.getLoadingSequence();
+            const mixersToLoad = Math.min(loadingSequence.maxMixers, this.factoryScene.mixers.length);
             for (let i = 0; i < mixersToLoad; i++) {
                 const mixerNode = this.factoryScene.mixers[i];
                 loader.load(paths.models.mixer, (gltf) => {
@@ -635,13 +636,27 @@ class ThreeJSVisualizer {
      * Update animation for factory model
      */
     updateFactoryAnimation(time, deltaTime) {
+        // Check if we need to force a visual update
+        const forceUpdate = this.needsVisualUpdate || false;
+        if (forceUpdate) {
+            this.needsVisualUpdate = false; // Reset the flag
+        }
+
         // Update each mixer in the factory
         this.mixerModels.forEach(mixer => {
-            // Get mixer-specific data if available, otherwise use global modelState
-            const mixerData = mixer.data || {};
-            const temperature = mixerData.temperature !== undefined ? mixerData.temperature : this.components.mixers.temperature;
-            const rpm = mixerData.rpm !== undefined ? mixerData.rpm : this.components.mixers.rpm;
-            const status = mixerData.status !== undefined ? mixerData.status : this.components.mixers.status;
+            // PRIORITY: Use mixer-specific data if available, then fall back to global
+            let temperature, rpm, status;
+            
+            if (mixer.data) {
+                temperature = mixer.data.temperature;
+                rpm = mixer.data.rpm;
+                status = mixer.data.status;
+            } else {
+                // Fallback to global state
+                temperature = this.components.mixers.temperature;
+                rpm = this.components.mixers.rpm;
+                status = this.components.mixers.status;
+            }
             
             // Use common animation calculation for consistent mixer behavior across frameworks
             const animValues = VisualizationComponents.calculateAnimationValues('mixer', {
@@ -665,8 +680,8 @@ class ThreeJSVisualizer {
                 });
             }
 
-            // Update status indicators
-            if (mixer.statusIndicator) {
+            // Update status indicators - FORCE UPDATE when data changes
+            if (mixer.statusIndicator && (forceUpdate || mixer.data)) {
                 const statusMapping = DTProperties.mapAlarmStatus(status);
                 mixer.statusIndicator.material.color.setHex(statusMapping.color);
 
@@ -681,8 +696,8 @@ class ThreeJSVisualizer {
                 }
             }
 
-            // Update tag content for this mixer using the tag manager
-            if (this.tagManager) {
+            // Update tag content for this mixer using the tag manager - FORCE UPDATE when data changes
+            if (this.tagManager && (forceUpdate || mixer.data)) {
                 this.tagManager.updateComponentTagContent(mixer.name, {
                     temperature: temperature,
                     rpm: rpm,
@@ -691,8 +706,8 @@ class ThreeJSVisualizer {
             }
         });
 
-        // Update water tank color based on flow rate
-        if (this.components.waterTank.object3D) {
+        // Update water tank color based on flow rate - FORCE UPDATE when data changes
+        if (this.components.waterTank.object3D && (forceUpdate || this.components.waterTank.object3D)) {
             const flowRateMapping = DTProperties.mapWaterFlowRate(this.components.waterTank.flowRate);
 
             this.components.waterTank.object3D.traverse((node) => {
@@ -707,8 +722,8 @@ class ThreeJSVisualizer {
                 }
             });
 
-            // Update water tank tag content using the tag manager
-            if (this.tagManager) {
+            // Update water tank tag content using the tag manager - FORCE UPDATE when data changes
+            if (this.tagManager && forceUpdate) {
                 this.tagManager.updateComponentTagContent('WaterTank', {
                     flowRate: this.components.waterTank.flowRate,
                     tankVolume: this.components.waterTank.tankVolume,
@@ -717,8 +732,8 @@ class ThreeJSVisualizer {
             }
         }
 
-        // Update freezer tunnel 
-        if (this.components.freezerTunnel.object3D) {
+        // Update freezer tunnel - FORCE UPDATE when data changes
+        if (this.components.freezerTunnel.object3D && (forceUpdate || this.components.freezerTunnel.object3D)) {
             // Update color based on temperature (blue-ish for cold)
             const freezerTemp = this.components.freezerTunnel.temperature;
             const intensity = Math.min(1.0, Math.max(0.0, (-freezerTemp + 10) / 30));
@@ -730,8 +745,8 @@ class ThreeJSVisualizer {
                 this.components.freezerTunnel.object3D.material.emissiveIntensity = intensity;
             }
 
-            // Update freezer tunnel tag content using the tag manager
-            if (this.tagManager) {
+            // Update freezer tunnel tag content using the tag manager - FORCE UPDATE when data changes
+            if (this.tagManager && forceUpdate) {
                 this.tagManager.updateComponentTagContent('FreezerTunnel', {
                     temperature: this.components.freezerTunnel.temperature,
                     speed: this.components.freezerTunnel.speed,
@@ -764,8 +779,8 @@ class ThreeJSVisualizer {
                 }
             }
 
-            // Update plastic liner tag content using the tag manager
-            if (this.tagManager) {
+            // Update plastic liner tag content using the tag manager - FORCE UPDATE when data changes
+            if (this.tagManager && forceUpdate) {
                 this.tagManager.updateComponentTagContent('PlasticLiner', {
                     rpm: this.components.plasticLiner.rpm,
                     status: this.components.plasticLiner.status
@@ -773,8 +788,8 @@ class ThreeJSVisualizer {
             }
         }
 
-        // Update cookie former using the tag manager
-        if (this.components.cookieFormer.object3D && this.tagManager) {
+        // Update cookie former using the tag manager - FORCE UPDATE when data changes
+        if (this.components.cookieFormer.object3D && this.tagManager && forceUpdate) {
             this.tagManager.updateComponentTagContent('CookieFormer', {
                 rate: this.components.cookieFormer.rate,
                 goodParts: this.components.cookieFormer.goodParts,
@@ -782,8 +797,8 @@ class ThreeJSVisualizer {
             });
         }
 
-        // Update box sealer using the tag manager
-        if (this.components.boxSealer.object3D && this.tagManager) {
+        // Update box sealer using the tag manager - FORCE UPDATE when data changes
+        if (this.components.boxSealer.object3D && this.tagManager && forceUpdate) {
             this.tagManager.updateComponentTagContent('BoxSealer', {
                 speed: this.components.boxSealer.speed,
                 status: this.components.boxSealer.status
@@ -815,8 +830,8 @@ class ThreeJSVisualizer {
             }
         });
 
-        // Update conveyor system tag if it exists using the tag manager
-        if (this.tagManager) {
+        // Update conveyor system tag if it exists using the tag manager - FORCE UPDATE when data changes
+        if (this.tagManager && forceUpdate) {
             this.tagManager.updateComponentTagContent('ConveyorSystem', {
                 speed: this.components.conveyorSystem.speed,
                 status: this.components.conveyorSystem.status

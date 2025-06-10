@@ -18,7 +18,7 @@ import signal
 
 # CONFIGURABLE: Set to your EC2 backend IP when running in the cloud
 # For local development use "localhost"
-DITTO_HOST = "54.217.116.62"  # Change to "localhost" for local development test
+DITTO_HOST = "localhost"  # Change to "localhost" for local development test
 
 # ANSI color codes for terminal output
 class Colors:
@@ -153,8 +153,8 @@ def create_factory_digital_twin(ditto_url=None):
             # Create features for multiple mixers
             features = {}
             
-            # Add 6 mixers with properties
-            for i in range(6):
+            # Add 26 mixers with properties (changed from 6 to 26)
+            for i in range(26):
                 mixer_id = f"Mixer_{i}"
                 # Each mixer has temperature and RPM
                 features[mixer_id] = {
@@ -230,7 +230,7 @@ def create_factory_digital_twin(ditto_url=None):
             create_response = requests.put(url, data=json.dumps(factory_thing), headers=headers)
             
             if create_response.status_code in (201, 204):
-                print_success(f"Successfully created Factory digital twin with 6 mixers, water tank, and other components")
+                print_success(f"Successfully created Factory digital twin with 26 mixers, water tank, and other components")
                 return True
             else:
                 print_error(f"Failed to create Factory digital twin: Status code {create_response.status_code}")
@@ -359,6 +359,193 @@ def create_factory_digital_twin(ditto_url=None):
             return False
     except Exception as e:
         print_error(f"Error checking if Factory digital twin exists: {str(e)}")
+        return False
+
+def recreate_factory_digital_twin(ditto_url=None):
+    """Delete and recreate the Factory digital twin to apply changes"""
+    if ditto_url is None:
+        ditto_url = f"http://{DITTO_HOST}:8080"
+        
+    thing_id = "org.eclipse.ditto:Factory"
+    policy_id = "org.eclipse.ditto:Factory"  # Same as thing ID for implicit policy
+    thing_url = f"{ditto_url}/api/2/things/{thing_id}"
+    policy_url = f"{ditto_url}/api/2/policies/{policy_id}"
+    
+    # Get authentication headers with default credentials
+    auth_headers = get_auth_header()
+    
+    headers = {
+        "Content-Type": "application/json",
+        **auth_headers
+    }
+    
+    try:
+        # First, check if the digital twin exists
+        response = requests.get(thing_url, headers=headers)
+        
+        if response.status_code == 200:
+            # Digital twin exists, delete it first
+            print_step("Deleting existing Factory digital twin...")
+            delete_response = requests.delete(thing_url, headers=headers)
+            
+            if delete_response.status_code in (204, 404):
+                print_success("Successfully deleted existing Factory digital twin")
+            else:
+                print_warning(f"Could not delete existing digital twin: Status code {delete_response.status_code}")
+                # Continue anyway, maybe it was already deleted
+                
+            # Also delete the policy to ensure clean recreation
+            print_step("Deleting existing Factory policy...")
+            policy_delete_response = requests.delete(policy_url, headers=headers)
+            
+            if policy_delete_response.status_code in (204, 404):
+                print_success("Successfully deleted existing Factory policy")
+            else:
+                print_warning(f"Could not delete existing policy: Status code {policy_delete_response.status_code}")
+                # Continue anyway
+                
+        elif response.status_code == 404:
+            print_step("No existing Factory digital twin found, creating new one...")
+            
+            # Also check and delete policy if it exists
+            policy_response = requests.get(policy_url, headers=headers)
+            if policy_response.status_code == 200:
+                print_step("Deleting orphaned Factory policy...")
+                policy_delete_response = requests.delete(policy_url, headers=headers)
+                if policy_delete_response.status_code in (204, 404):
+                    print_success("Successfully deleted orphaned Factory policy")
+                else:
+                    print_warning(f"Could not delete orphaned policy: Status code {policy_delete_response.status_code}")
+        else:
+            print_warning(f"Unexpected response when checking for existing twin: Status code {response.status_code}")
+        
+        # Create the policy first
+        print_step("Creating Factory policy...")
+        
+        factory_policy = {
+            "policyId": policy_id,
+            "entries": {
+                "owner": {
+                    "subjects": {
+                        "nginx:ditto": {
+                            "type": "nginx-basic-auth"
+                        }
+                    },
+                    "resources": {
+                        "thing:/": {
+                            "grant": ["READ", "WRITE"],
+                            "revoke": []
+                        },
+                        "policy:/": {
+                            "grant": ["READ", "WRITE"],
+                            "revoke": []
+                        },
+                        "message:/": {
+                            "grant": ["READ", "WRITE"],
+                            "revoke": []
+                        }
+                    }
+                }
+            }
+        }
+        
+        policy_create_response = requests.put(policy_url, data=json.dumps(factory_policy), headers=headers)
+        
+        if policy_create_response.status_code in (201, 204):
+            print_success("Successfully created Factory policy")
+        else:
+            print_warning(f"Could not create policy: Status code {policy_create_response.status_code}")
+            print(f"Policy response: {policy_create_response.text}")
+        
+        # Now create the new digital twin
+        print_step("Creating new Factory digital twin with 26 mixers...")
+        
+        # Create features for multiple mixers
+        features = {}
+        
+        # Add 26 mixers with properties
+        for i in range(26):
+            mixer_id = f"Mixer_{i}"
+            # Each mixer has temperature and RPM
+            features[mixer_id] = {
+                "properties": {
+                    "Temperature": 100,
+                    "RPM": 60
+                }
+            }
+            
+            # Each mixer also has an alarm component
+            features[f"{mixer_id}_AlarmComponent"] = {
+                "properties": {
+                    "alarm_status": "NORMAL"
+                }
+            }
+        
+        # Add water tank with flow rate and tank volume
+        features["WaterTank"] = {
+            "properties": {
+                "flowRate1": 35,
+                "tankVolume1": 75,
+                "Status": "NORMAL"
+            }
+        }
+        
+        # Add other components
+        features["FreezerTunnel"] = {
+            "properties": {
+                "Temperature": -15,
+                "State": "NORMAL"
+            }
+        }
+        
+        features["PlasticLiner"] = {
+            "properties": {
+                "RPM": 45,
+                "Status": "NORMAL"
+            }
+        }
+        
+        features["CookieFormer"] = {
+            "properties": {
+                "Rate": 120,
+                "GoodParts": 98.5,
+                "Status": "NORMAL"
+            }
+        }
+        
+        features["BoxSealer"] = {
+            "properties": {
+                "Speed": 0.8,
+                "Status": "NORMAL"
+            }
+        }
+        
+        features["Conveyor"] = {
+            "properties": {
+                "Speed": 0.8,
+                "Status": "NORMAL"
+            }
+        }
+        
+        # Create the factory digital twin with all features and explicit policy reference
+        factory_thing = {
+            "thingId": thing_id,
+            "policyId": policy_id,  # Explicitly reference the policy
+            "features": features
+        }
+        
+        create_response = requests.put(thing_url, data=json.dumps(factory_thing), headers=headers)
+        
+        if create_response.status_code in (201, 204):
+            print_success(f"Successfully recreated Factory digital twin with 26 mixers and all components")
+            return True
+        else:
+            print_error(f"Failed to recreate Factory digital twin: Status code {create_response.status_code}")
+            print(f"Response: {create_response.text}")
+            return False
+            
+    except Exception as e:
+        print_error(f"Error recreating Factory digital twin: {str(e)}")
         return False
 
 def print_header(text: str) -> None:
@@ -507,8 +694,8 @@ def main() -> None:
     if args.action == 'create-twin':
         # Wait for Ditto to be available first
         if wait_for_ditto(args.ditto_url, args.ditto_timeout):
-            # Create factory digital twin
-            if not create_factory_digital_twin(args.ditto_url):
+            # Recreate factory digital twin (delete and create fresh)
+            if not recreate_factory_digital_twin(args.ditto_url):
                 sys.exit(1)
         else:
             print_error("Ditto is not available, cannot create digital twin")

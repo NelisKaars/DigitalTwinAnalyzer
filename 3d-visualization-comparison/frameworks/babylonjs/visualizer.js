@@ -119,6 +119,9 @@ class BabylonJSVisualizer {
         this.camera.attachControl(canvas, true);
         this.camera.wheelPrecision = 10; // Adjust zoom sensitivity
         
+        // Set field of view to match other frameworks (75 degrees converted to radians)
+        this.camera.fov = 75 * Math.PI / 180;
+        
         // Enhance panning speed
         this.camera.panningSensibility = 50; // Default is 1000 (lower = faster)
         this.camera.panningInertia = 0.9;    // Higher inertia for smoother movement
@@ -347,7 +350,7 @@ class BabylonJSVisualizer {
             }
 
             // Load mixers - directly use loaded meshes
-            const mixersToLoad = Math.min(6, this.factoryScene.mixers.length);
+            const mixersToLoad = this.factoryScene.mixers.length; // Load all mixers instead of limiting to 6
             for (let i = 0; i < mixersToLoad; i++) {
                 const mixerNode = this.factoryScene.mixers[i];
                 
@@ -372,7 +375,8 @@ class BabylonJSVisualizer {
                         
                         // Identify rotating parts based on name
                         const name = mesh.name.toLowerCase();
-                        if (name.includes('mixer')) {
+                        // console.log(`Checking mesh: ${name}`);
+                        if (name.includes('mixer') || name.includes('plane')) {
                             mesh.metadata = { isRotatingPart: true };
                             rotatingPart = mesh;
                         }

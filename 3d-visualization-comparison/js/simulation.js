@@ -342,23 +342,43 @@ const Simulation = {
         
         // Check if simulation is complete
         if (this.config.elapsedTime >= this.config.duration) {
-            this.stop();
+            // Use appropriate stop method based on mode
+            if (this.stressTest.enabled) {
+                this.stopStressTest();
+            } else {
+                this.stop();
+            }
             return;
         }
         
-        // Update camera position
-        this._updateCameraPosition();
+        // Update camera position - use stress test camera if in stress test mode
+        if (this.stressTest.enabled) {
+            this._updateCameraPositionStressTest();
+        } else {
+            this._updateCameraPosition();
+        }
         
-        // Update digital twin data if interval has passed
+        // Update digital twin data if interval has passed - use stress test data updates if in stress test mode
         if (now - this.config.lastDataUpdate > this.config.dataUpdateInterval) {
-            this._updateDigitalTwinData();
+            if (this.stressTest.enabled) {
+                this._updateDigitalTwinDataStressTest();
+            } else {
+                this._updateDigitalTwinData();
+            }
             this.config.lastDataUpdate = now;
         }
         
-        // Call progress callback
+        // Call progress callback with simulation type information
         const progress = this.config.elapsedTime / this.config.duration;
         if (this.callbacks.onProgress) {
-            this.callbacks.onProgress(progress);
+            this.callbacks.onProgress(progress, this.stressTest.enabled ? 'stress-test' : 'normal');
+        }
+        
+        // Update timer display directly here to ensure it works
+        if (typeof updateSimulationTimer === 'function') {
+            updateSimulationTimer(this.config.elapsedTime);
+        } else if (window.dashboardState && typeof window.dashboardState.updateSimulationTimer === 'function') {
+            window.dashboardState.updateSimulationTimer(this.config.elapsedTime);
         }
         
         // Continue animation loop
@@ -577,27 +597,75 @@ const Simulation = {
         };
     },
     
+    // Stress test configuration for performance testing
+    stressTest: {
+        enabled: false,
+        duration: 30,                  // 30 seconds stress test
+        updateInterval: 5,             // 5ms between updates (much more intensive)
+        mixerUpdateDelay: 5,           // 5ms delay between each mixer property update
+        currentMixerIndex: 0,          // Track which mixer to update next
+        currentPropertyIndex: 0,       // Track which property to update next (RPM, Temperature, Alarm)
+        lastUpdate: 0,                 // Timestamp of last update
+        updateCycle: 0,                // Track update cycles
+        maxRpmVariation: 100,          // Maximum RPM variation for stress test
+        baseRpm: 60,                   // Base RPM value
+        propertyCycle: ['RPM', 'Temperature', 'alarm_status'], // Properties to cycle through
+    },
+
+    // Stress test camera waypoints - focused on mixer room corners
+    stressTestWaypoints: [
+        { 
+            position: [5, 15, 90],       // High corner view of mixer room - corner 1 (mixers 0-6)
+            target: [15, 0, 75],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [35, 15, 90],      // High corner view of mixer room - corner 2 (mixers 7-13)
+            target: [25, 0, 75],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [35, 15, 60],      // High corner view of mixer room - corner 3 (mixers 14-19)
+            target: [25, 0, 75],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [5, 15, 60],       // High corner view of mixer room - corner 4 (mixers 20-25)
+            target: [15, 0, 75],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [20, 25, 75],      // High overhead center view (all mixers)
+            target: [20, 0, 75],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [10, 8, 85],       // Low angle view - front half
+            target: [30, 3, 65],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [30, 8, 65],       // Low angle view - back half
+            target: [10, 3, 85],
+            up: [0, 1, 0]
+        }
+    ],
+    
     // Reset all twin values to their defaults
     _resetTwinToDefaultValues() {
         console.log("Resetting all twin values to their original state...");
         
         // Define default values for all components
         const defaultValues = {
-            // Mixers - all to default values
-            'Mixer_0': { 'Temperature': 100, 'RPM': 60 },
-            'Mixer_1': { 'Temperature': 100, 'RPM': 60 },
-            'Mixer_2': { 'Temperature': 100, 'RPM': 60 },
-            'Mixer_3': { 'Temperature': 100, 'RPM': 60 },
-            'Mixer_4': { 'Temperature': 100, 'RPM': 60 },
-            'Mixer_5': { 'Temperature': 100, 'RPM': 60 },
+            // Mixers - all 26 mixers to default values
+            ...Array.from({length: 26}, (_, i) => ({
+                [`Mixer_${i}`]: { 'Temperature': 100, 'RPM': 60 }
+            })).reduce((acc, obj) => ({...acc, ...obj}), {}),
             
-            // Mixer Alarm components - all to NORMAL
-            'Mixer_0_AlarmComponent': { 'alarm_status': 'NORMAL' },
-            'Mixer_1_AlarmComponent': { 'alarm_status': 'NORMAL' },
-            'Mixer_2_AlarmComponent': { 'alarm_status': 'NORMAL' },
-            'Mixer_3_AlarmComponent': { 'alarm_status': 'NORMAL' },
-            'Mixer_4_AlarmComponent': { 'alarm_status': 'NORMAL' },
-            'Mixer_5_AlarmComponent': { 'alarm_status': 'NORMAL' },
+            // Mixer Alarm components - all 26 to NORMAL
+            ...Array.from({length: 26}, (_, i) => ({
+                [`Mixer_${i}_AlarmComponent`]: { 'alarm_status': 'NORMAL' }
+            })).reduce((acc, obj) => ({...acc, ...obj}), {}),
             
             // Water Tank
             'WaterTank': { 'flowRate1': 35, 'tankVolume1': 75, 'Status': 'NORMAL' },
@@ -639,7 +707,140 @@ const Simulation = {
             .catch(err => {
                 console.error("Error during reset operation:", err);
             });
-    }
+    },
+
+    // Start stress test simulation
+    startStressTest(activeInstance) {
+        if (this.config.isRunning) return;
+        
+        // Configure for stress test
+        this.stressTest.enabled = true;
+        this.config.duration = this.stressTest.duration;
+        this.config.cameraPathDuration = this.stressTest.duration;
+        this.config.dataUpdateInterval = this.stressTest.updateInterval;
+        
+        // Replace normal waypoints with stress test waypoints
+        this.originalWaypoints = [...this.waypoints];
+        this.waypoints = [...this.stressTestWaypoints];
+        
+        // Reset stress test state
+        this.stressTest.currentMixerIndex = 0;
+        this.stressTest.lastMixerUpdate = 0;
+        this.stressTest.updateCycle = 0;
+        
+        console.log('Starting stress test - rapid mixer updates for', this.stressTest.duration, 'seconds');
+        console.log('Camera focused on mixer room, updating all 26 mixers every', this.stressTest.mixerUpdateDelay * 26, 'ms');
+        
+        // Start the simulation with stress test configuration
+        this.start(activeInstance);
+    },
+
+    // Stop stress test and restore normal simulation
+    stopStressTest() {
+        if (!this.stressTest.enabled) return;
+        
+        this.stressTest.enabled = false;
+        
+        // Restore original waypoints
+        if (this.originalWaypoints) {
+            this.waypoints = [...this.originalWaypoints];
+            this.originalWaypoints = null;
+        }
+        
+        // Reset configuration to normal values
+        this.config.duration = 90;
+        this.config.cameraPathDuration = 95;
+        this.config.dataUpdateInterval = 100;
+        
+        console.log('Stress test stopped, restored normal simulation configuration');
+        
+        // Call normal stop method
+        this.stop();
+    },
+
+    // Override the data update method for stress test
+    _updateDigitalTwinDataStressTest() {
+        const now = performance.now();
+        
+        // Check if it's time to update the next mixer
+        if (now - this.stressTest.lastMixerUpdate >= this.stressTest.mixerUpdateDelay) {
+            const mixerIndex = this.stressTest.currentMixerIndex;
+            const mixerComponent = `Mixer_${mixerIndex}`;
+            
+            // Generate varying RPM values for visual impact
+            const baseRpm = this.stressTest.baseRpm;
+            const variation = this.stressTest.maxRpmVariation;
+            const cycleOffset = (this.stressTest.updateCycle + mixerIndex) * 0.1;
+            
+            // Create oscillating RPM pattern with different phases for each mixer
+            const rpmValue = Math.round(baseRpm + 
+                Math.sin(this.config.elapsedTime * 2 + cycleOffset) * variation * 0.5 +
+                Math.cos(this.config.elapsedTime * 1.5 + mixerIndex * 0.3) * variation * 0.3);
+            
+            // Ensure RPM is within reasonable bounds
+            const clampedRpm = Math.max(0, Math.min(120, rpmValue));
+            
+            // Generate varying temperature values
+            const tempVariation = 50;
+            const tempValue = Math.round(100 + 
+                Math.sin(this.config.elapsedTime * 1.8 + mixerIndex * 0.4) * tempVariation * 0.4 +
+                Math.cos(this.config.elapsedTime * 2.2 + cycleOffset) * tempVariation * 0.2);
+            
+            const clampedTemp = Math.max(20, Math.min(180, tempValue));
+            
+            // Update the mixer
+            DittoAPI.updateProperty(mixerComponent, 'RPM', clampedRpm);
+            DittoAPI.updateProperty(mixerComponent, 'Temperature', clampedTemp);
+            
+            // Log every 5th mixer update to avoid spam
+            if (mixerIndex % 5 === 0) {
+                console.log(`Stress test: Updated ${mixerComponent} - RPM: ${clampedRpm}, Temp: ${clampedTemp}`);
+            }
+            
+            // Move to next mixer
+            this.stressTest.currentMixerIndex = (this.stressTest.currentMixerIndex + 1) % 26;
+            this.stressTest.lastMixerUpdate = now;
+            
+            // If we've completed a full cycle through all mixers
+            if (this.stressTest.currentMixerIndex === 0) {
+                this.stressTest.updateCycle++;
+                console.log(`Stress test: Completed update cycle ${this.stressTest.updateCycle}`);
+                
+                // Update visualization after each complete cycle
+                this._updateVisualizationFromLatestState();
+            }
+        }
+        
+        // Call data update callback
+        if (this.callbacks.onDataUpdate) {
+            this.callbacks.onDataUpdate();
+        }
+    },
+
+    // Override camera update for stress test to use mixer room waypoints
+    _updateCameraPositionStressTest() {
+        if (!this.config.activeInstance || !this.config.activeInstance.setCameraPosition) {
+            return;
+        }
+        
+        // Use stress test waypoints with slower transitions for better observation
+        const pathTime = (this.config.elapsedTime % this.config.cameraPathDuration) / this.config.cameraPathDuration;
+        
+        const waypointCount = this.stressTestWaypoints.length;
+        const totalProgress = pathTime * waypointCount;
+        const currentIndex = Math.floor(totalProgress);
+        const nextIndex = (currentIndex + 1) % waypointCount;
+        const segmentProgress = totalProgress - currentIndex;
+        
+        const current = this.stressTestWaypoints[currentIndex];
+        const next = this.stressTestWaypoints[nextIndex];
+        
+        const position = this._interpolateVector(current.position, next.position, segmentProgress);
+        const target = this._interpolateVector(current.target, next.target, segmentProgress);
+        const up = this._interpolateVector(current.up, next.up, segmentProgress);
+        
+        this.config.activeInstance.setCameraPosition(position, target, up);
+    },
 };
 
 // Export the simulation object to make it accessible globally
