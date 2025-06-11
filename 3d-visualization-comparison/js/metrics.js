@@ -9,7 +9,14 @@ const MetricsCollector = {
         fps: [],
         memory: [],
         loadTime: 0,
-        latency: []
+        latency: [],
+        updateAccuracy: {
+            expectedUpdates: 0,      // Total updates that should have occurred
+            receivedUpdates: 0,      // Updates that were successfully processed
+            missedUpdates: 0,        // Updates that failed or were dropped
+            pendingUpdates: {},      // Track pending updates by component+property
+            updateTimeouts: {}       // Track update timeout handlers
+        }
     },
     
     // Configuration
@@ -52,7 +59,14 @@ const MetricsCollector = {
             fps: [],
             memory: [],
             loadTime: 0,
-            latency: []
+            latency: [],
+            updateAccuracy: {
+                expectedUpdates: 0,
+                receivedUpdates: 0,
+                missedUpdates: 0,
+                pendingUpdates: {},
+                updateTimeouts: {}
+            }
         };
         this.config.frameTimeHistory = [];
         this.config.lastFrameTime = 0;
@@ -158,14 +172,15 @@ const MetricsCollector = {
     
     // Export metrics to CSV format
     exportToCSV() {
-        const lines = ['Framework,Timestamp,FPS,Memory(MB),LoadTime(ms),LatencyAvg(ms)'];
+        const lines = ['Framework,Timestamp,FPS,Memory(MB),LoadTime(ms),LatencyAvg(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates'];
         
         const timestamp = new Date().toISOString();
         const avgFPS = this.getAverageFPS();
         const avgMemory = this.getAverageMemory();
         const avgLatency = this.getAverageLatency();
+        const accuracyStats = this.getUpdateAccuracyStats();
         
-        lines.push(`${this.metrics.framework},${timestamp},${avgFPS},${avgMemory},${this.metrics.loadTime},${avgLatency}`);
+        lines.push(`${this.metrics.framework},${timestamp},${avgFPS},${avgMemory},${this.metrics.loadTime},${avgLatency},${accuracyStats.accuracyPercentage},${accuracyStats.expectedUpdates},${accuracyStats.receivedUpdates},${accuracyStats.missedUpdates}`);
         
         return lines.join('\n');
     },
@@ -200,5 +215,121 @@ const MetricsCollector = {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }
+    },
+    
+    // Record an expected update (before sending to API)
+    recordExpectedUpdate(component, property, value, timeout = 5000) {
+        if (!this.config.isRunning) return;
+        
+        const updateKey = `${component}.${property}`;
+        const updateId = `${updateKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        this.metrics.updateAccuracy.expectedUpdates++;
+        
+        // Store pending update with expected value
+        this.metrics.updateAccuracy.pendingUpdates[updateId] = {
+            component,
+            property,
+            expectedValue: value,
+            timestamp: performance.now(),
+            key: updateKey
+        };
+        
+        // Set timeout to mark as missed if not confirmed
+        this.metrics.updateAccuracy.updateTimeouts[updateId] = setTimeout(() => {
+            if (this.metrics.updateAccuracy.pendingUpdates[updateId]) {
+                this.metrics.updateAccuracy.missedUpdates++;
+                delete this.metrics.updateAccuracy.pendingUpdates[updateId];
+                
+                // Update DOM with new accuracy percentage
+                this.updateDOMMetric('update-accuracy', `${this.getUpdateAccuracy()}%`);
+                
+                console.warn(`Update missed: ${updateKey} = ${value} (timeout after ${timeout}ms)`);
+            }
+            delete this.metrics.updateAccuracy.updateTimeouts[updateId];
+        }, timeout);
+        
+        return updateId;
+    },
+
+    // Confirm an update was received (after getting from API or visual confirmation)
+    confirmUpdate(component, property, receivedValue, tolerance = 0.01) {
+        if (!this.config.isRunning) return false;
+        
+        const updateKey = `${component}.${property}`;
+        
+        // Find matching pending update
+        let matchedUpdateId = null;
+        let matchedUpdate = null;
+        
+        for (const [updateId, update] of Object.entries(this.metrics.updateAccuracy.pendingUpdates)) {
+            if (update.key === updateKey) {
+                // Check if values match within tolerance
+                const valuesMatch = this.valuesMatch(update.expectedValue, receivedValue, tolerance);
+                
+                if (valuesMatch) {
+                    matchedUpdateId = updateId;
+                    matchedUpdate = update;
+                    break;
+                }
+            }
+        }
+        
+        if (matchedUpdateId && matchedUpdate) {
+            this.metrics.updateAccuracy.receivedUpdates++;
+            
+            // Clear timeout and remove from pending
+            if (this.metrics.updateAccuracy.updateTimeouts[matchedUpdateId]) {
+                clearTimeout(this.metrics.updateAccuracy.updateTimeouts[matchedUpdateId]);
+                delete this.metrics.updateAccuracy.updateTimeouts[matchedUpdateId];
+            }
+            delete this.metrics.updateAccuracy.pendingUpdates[matchedUpdateId];
+            
+            // Update DOM with new accuracy percentage
+            this.updateDOMMetric('update-accuracy', `${this.getUpdateAccuracy()}%`);
+            
+            return true;
+        }
+        
+        return false;
+    },
+
+    // Helper to compare values with tolerance for numbers
+    valuesMatch(expected, received, tolerance = 0.01) {
+        if (expected === received) return true;
+        
+        // For numbers, check within tolerance
+        if (typeof expected === 'number' && typeof received === 'number') {
+            return Math.abs(expected - received) <= tolerance;
+        }
+        
+        // For strings, exact match
+        return String(expected) === String(received);
+    },
+
+    // Get current update accuracy percentage
+    getUpdateAccuracy() {
+        const total = this.metrics.updateAccuracy.expectedUpdates;
+        if (total === 0) return 100; // No updates sent yet
+        
+        const successful = this.metrics.updateAccuracy.receivedUpdates;
+        return Math.round((successful / total) * 100 * 100) / 100; // Round to 2 decimal places
+    },
+
+    // Get update accuracy statistics
+    getUpdateAccuracyStats() {
+        const accuracy = this.metrics.updateAccuracy;
+        const totalProcessed = accuracy.receivedUpdates + accuracy.missedUpdates;
+        const pendingCount = Object.keys(accuracy.pendingUpdates).length;
+        
+        return {
+            expectedUpdates: accuracy.expectedUpdates,
+            receivedUpdates: accuracy.receivedUpdates,
+            missedUpdates: accuracy.missedUpdates,
+            pendingUpdates: pendingCount,
+            accuracyPercentage: this.getUpdateAccuracy(),
+            successRate: accuracy.expectedUpdates > 0 ? 
+                        Math.round((accuracy.receivedUpdates / accuracy.expectedUpdates) * 100 * 100) / 100 : 100
+        };
+    },
 };

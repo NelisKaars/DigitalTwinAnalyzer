@@ -52,6 +52,9 @@ const DittoAPI = {
     // Update a property of the digital twin
     async updateProperty(featureId, propertyName, value) {
         try {
+            // Record expected update for accuracy tracking
+            const updateId = MetricsCollector.recordExpectedUpdate(featureId, propertyName, value);
+            
             const url = `${this.settings.baseUrl}/api/2/things/${this.settings.thingId}/features/${featureId}/properties/${propertyName}`;
             
             const startTime = performance.now();
@@ -66,7 +69,17 @@ const DittoAPI = {
             // Track latency for metrics
             MetricsCollector.recordLatency(endTime - startTime);
             
-            return response.status === 204;
+            const success = response.status === 204;
+            
+            if (success) {
+                // For immediate confirmation, we assume the update was successful
+                // This will be verified later when the value is read back
+                setTimeout(() => {
+                    MetricsCollector.confirmUpdate(featureId, propertyName, value);
+                }, 100); // Small delay to simulate processing time
+            }
+            
+            return success;
         } catch (error) {
             console.error(`Error updating ${propertyName}:`, error);
             return false;

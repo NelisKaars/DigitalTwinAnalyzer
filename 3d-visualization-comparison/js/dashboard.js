@@ -870,12 +870,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     MetricsCollector.getSimulationAverageLatency() : 
                     MetricsCollector.getAverageLatency ? MetricsCollector.getAverageLatency() : 0;
                     
+        const updateAccuracy = MetricsCollector.getUpdateAccuracy ? MetricsCollector.getUpdateAccuracy() : 100;
         const duration = Simulation.config.elapsedTime.toFixed(1);
         
         // Update UI
         document.getElementById('sim-metric-fps').textContent = fps;
         document.getElementById('sim-metric-memory').textContent = `${memory} MB`;
         document.getElementById('sim-metric-latency').textContent = `${latency} ms`;
+        document.getElementById('sim-metric-update-accuracy').textContent = `${updateAccuracy}%`;
         document.getElementById('sim-metric-duration').textContent = `${duration} s`;
     }
     
