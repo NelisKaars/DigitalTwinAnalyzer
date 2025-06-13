@@ -246,7 +246,7 @@ const MetricsCollector = {
             lines.push('SimulationFPS,SimulationMemory(MB),SimulationLatency(ms),SimulationUserLatency(ms),SimulationUpdateAccuracy(%),SimulationDuration(s)');
             const simDuration = this.simulationMetrics.endTime > 0 ? 
                 (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
-            lines.push(`${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${this.getSimulationUpdateAccuracy()},${simDuration.toFixed(1)}`);
+            lines.push(`${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationUserInteractionLatency()},${this.getSimulationUpdateAccuracy()},${simDuration.toFixed(1)}`);
         }
         
         // Add time-series data if available
@@ -336,7 +336,7 @@ const MetricsCollector = {
             (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
         const simAccuracy = this.getSimulationUpdateAccuracy();
         
-        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
+        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationUserInteractionLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
         
         // Add time-series data if available
         if (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) {
@@ -571,7 +571,21 @@ const MetricsCollector = {
                 this.simulationMetrics.finalUpdateAccuracy = Math.round(
                     (mainAccuracy.receivedUpdates / mainAccuracy.expectedUpdates) * 100 * 100
                 ) / 100;
+                console.log(`Final accuracy calculated: ${this.simulationMetrics.finalUpdateAccuracy}% (${mainAccuracy.receivedUpdates}/${mainAccuracy.expectedUpdates})`);
             }
+            
+            // Also update the simulation-specific counters for consistency
+            // Safety check: ensure updateAccuracy object exists
+            if (!this.simulationMetrics.updateAccuracy) {
+                this.simulationMetrics.updateAccuracy = {
+                    expectedUpdates: 0,
+                    receivedUpdates: 0,
+                    missedUpdates: 0
+                };
+            }
+            this.simulationMetrics.updateAccuracy.expectedUpdates = mainAccuracy.expectedUpdates;
+            this.simulationMetrics.updateAccuracy.receivedUpdates = mainAccuracy.receivedUpdates;
+            this.simulationMetrics.updateAccuracy.missedUpdates = mainAccuracy.missedUpdates;
             
             console.log('Simulation metrics captured after waiting for pending updates');
         }, 2000); // Wait 2 seconds to allow any last updates to be processed
