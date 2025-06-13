@@ -854,7 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Wait a bit for pending updates to complete before showing results
         // Use longer delay for stress tests since they have more rapid updates
         const isStressTest = dashboardState.simulationType === 'stress-test';
-        const delay = isStressTest ? 3500 : 1500; // 3.5 seconds for stress test, 1.5 for normal
+        const delay = isStressTest ? 5000 : 2500; // 3.5 seconds for stress test, 1.5 for normal
         
         setTimeout(() => {
             // Display simulation results after pending updates have time to complete
