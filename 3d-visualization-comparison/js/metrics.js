@@ -331,14 +331,14 @@ const MetricsCollector = {
         
         // Header for simulation summary
         lines.push('=== SIMULATION METRICS ===');
-        lines.push('Framework,SimulationDate,Duration(s),AvgFPS,AvgMemory(MB),AvgLatency(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates');
+        lines.push('Framework,SimulationDate,Duration(s),AvgFPS,AvgMemory(MB),AvgLatency(ms),AvgUserInteractionLatency(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates');
         
         const timestamp = new Date().toISOString();
         const simDuration = this.simulationMetrics.endTime > 0 ? 
             (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
         const simAccuracy = this.getSimulationUpdateAccuracy();
         
-        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
+        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
         
         // Add time-series data if available
         if (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) {
@@ -348,6 +348,17 @@ const MetricsCollector = {
             
             this.simulationMetrics.timeSeries.forEach(dataPoint => {
                 lines.push(`${dataPoint.timestamp.toFixed(1)},${dataPoint.fps},${dataPoint.memory},${dataPoint.latency}`);
+            });
+        }
+        
+        // Add user interaction data if available
+        if (this.simulationMetrics.userInteractionLatency && this.simulationMetrics.userInteractionLatency.length > 0) {
+            lines.push('');
+            lines.push('=== SIMULATION USER INTERACTION DATA ===');
+            lines.push('InteractionType,Latency(ms),Timestamp');
+            
+            this.simulationMetrics.userInteractionLatency.forEach(interaction => {
+                lines.push(`${interaction.type || 'unknown'},${interaction.latency},${interaction.timestamp}`);
             });
         }
         
@@ -605,7 +616,9 @@ const MetricsCollector = {
                     fps: currentFPS,
                     memory: currentMemory,
                     latency: currentLatency
-                });               
+                });
+                
+                console.log(`Time-series data: ${elapsedSeconds.toFixed(1)}s - FPS: ${currentFPS}, Memory: ${currentMemory}MB, Latency: ${currentLatency}ms`);
             }
         }, 1000); // Collect every second
     },
@@ -719,6 +732,8 @@ const MetricsCollector = {
      * @param {object} data - The data that was updated
      */
     confirmUserInteractionByContent(componentId, data) {
+        console.log(`Attempting to confirm interaction for component: ${componentId}`, data);
+        
         // Look for pending interactions that might match this update
         for (const [interactionId, interaction] of Object.entries(this.userInteractionLatency.pendingInteractions)) {
             const shouldConfirm = this.shouldConfirmInteraction(interaction, componentId, data);

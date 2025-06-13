@@ -26,9 +26,8 @@ with different colored lines for easy comparison.
 Usage:
     python generate_performance_graphs.py [data_directory]
     
-The script expects CSV files in one of these formats:
+The script expects CSV files in the format:
     {framework}_metrics_{timestamp}.csv
-    {framework}_simulation_metrics_{timestamp}.csv
     
 Where framework is one of: threejs, babylonjs, playcanvas
 """
@@ -58,21 +57,21 @@ SIMULATION_PHASES = [
         'name': 'Camera Movement',
         'start': 0,
         'end': 15,
-        'description': 'No data changes',
+        'description': 'No data changes (camera moves to cookie liner)',
         'color': '#e8f4f8'
     },
     {
         'name': 'Low Visual Impact',
         'start': 15,
         'end': 60,
-        'description': 'Data changes with low visual changes',
+        'description': 'Data changes with low visual changes (cookie liner shown)',
         'color': '#fff2cc'
     },
     {
         'name': 'High Visual Impact',
         'start': 60,
         'end': 90,
-        'description': 'Data changes with high visual changes',
+        'description': 'Data changes with high visual changes (mixers active)',
         'color': '#ffcccc'
     }
 ]
@@ -100,16 +99,8 @@ def find_csv_files(data_directory):
     csv_files = {}
     
     for framework in FRAMEWORKS.keys():
-        # Try both patterns: regular metrics and simulation metrics
-        patterns = [
-            os.path.join(data_directory, f"{framework}_metrics_*.csv"),
-            os.path.join(data_directory, f"{framework}_simulation_metrics_*.csv")
-        ]
-        
-        files = []
-        for pattern in patterns:
-            files.extend(glob.glob(pattern))
-        
+        pattern = os.path.join(data_directory, f"{framework}_metrics_*.csv")
+        files = glob.glob(pattern)
         if files:
             csv_files[framework] = sorted(files)  # Sort by filename (which includes timestamp)
             print(f"Found {len(files)} CSV files for {framework}")
@@ -240,7 +231,7 @@ def create_single_graph(data_dict, graph_config, output_dir):
         graph_config (dict): Configuration for the graph
         output_dir (str): Directory to save the graph
     """
-    fig, ax = plt.subplots(figsize=(12, 8))  # Standard size since legends are inside now
+    fig, ax = plt.subplots(figsize=(12, 8))
     
     # Track if we have any data to plot
     has_data = False
@@ -286,9 +277,21 @@ def create_single_graph(data_dict, graph_config, output_dir):
     # Add grid
     ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
     
-    # Position framework legend in the bottom right corner where there's no data
-    ax.legend(loc='lower right', bbox_to_anchor=(0.98, 0.02), 
-             frameon=True, fancybox=True, shadow=True)
+    # Add legend (combine framework and phase legends)
+    framework_legend = ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=True)
+    ax.add_artist(framework_legend)  # Keep the framework legend
+    
+    # Create a separate legend for phases
+    phase_handles = []
+    phase_labels = []
+    for phase in SIMULATION_PHASES:
+        handle = plt.Rectangle((0,0),1,1, color=phase['color'], alpha=0.3)
+        phase_handles.append(handle)
+        phase_labels.append(f"{phase['name']}")
+    
+    ax.legend(phase_handles, phase_labels, 
+             loc='upper right', frameon=True, fancybox=True, shadow=True,
+             title='Simulation Phases')
     
     # Set axis limits with some padding
     ax.margins(x=0.02, y=0.05)
@@ -303,7 +306,7 @@ def create_single_graph(data_dict, graph_config, output_dir):
         # Log scale might be useful for latency if values vary widely
         # ax.set_yscale('log')
     
-    # Use tight layout for optimal spacing
+    # Tight layout
     plt.tight_layout()
     
     # Save the graph
@@ -377,7 +380,7 @@ def create_phase_heatmap(data_dict, metric_column, output_dir):
         return
     
     # Create the heatmap
-    fig, ax = plt.subplots(figsize=(12, 6))  # Wider figure for better spacing
+    fig, ax = plt.subplots(figsize=(10, 6))
     
     # Convert to numpy array for better handling
     heatmap_array = np.array(heatmap_data)
@@ -459,7 +462,7 @@ def create_combined_heatmap(data_dict, output_dir):
         return
     
     # Create the heatmap
-    fig, ax = plt.subplots(figsize=(14, 10))  # Even wider for comprehensive heatmap
+    fig, ax = plt.subplots(figsize=(12, 10))
     
     # Convert to numpy array
     heatmap_array = np.array(all_data)

@@ -870,6 +870,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use simulationType parameter if provided, otherwise fall back to dashboard state
         const simType = simulationType || dashboardState.simulationType;
         
+        console.log(`Updating progress: ${progress} for type: ${simType}`);
+        
         if (simType === 'stress-test') {
             // Update stress test progress bar
             const progressFill = document.getElementById('stress-test-progress-fill');
@@ -886,6 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (progressFill) {
                 const percent = Math.round(progress * 100);
                 progressFill.style.width = `${percent}%`;
+                console.log(`Set normal simulation progress to ${percent}%`);
             }
         }
     }

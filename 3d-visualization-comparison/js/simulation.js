@@ -84,37 +84,37 @@ const Simulation = {
             up: [0, 1, 0]
         },
         { 
-            position: [22.5, 2, 66],       // Walk through door cookiemixer room
-            target: [22.5, 1, 80],
+            position: [22.5, 2, 72],       // Walk through door cookiemixer room
+            target: [28.75, 1, 80],
             up: [0, 1, 0]
         },
         { 
-            position: [22.5, 2, 66],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
-            target: [22.5, 1, 80],
+            position: [22.5, 2, 87],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
+            target: [34, 1, 71],
             up: [0, 1, 0]
         },
         { 
-            position: [22.5, 2, 66],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
-            target: [22.5, 1, 80],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [22.5, 2, 71],         // turn around go up and whilst looking down to see the entire factory (the end)
+            position: [31.5, 2, 87],       // Stand in Cookiemixer room (ALl RPMs should speed up, then alarm go off)
             target: [31, 1, 71],
             up: [0, 1, 0]
         },
         { 
-            position: [22.5, 2, 76],         // turn around go up and whilst looking down to see the entire factory (the end)
-            target: [31, 1, 71],
+            position: [41, 2, 87],         // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [40, 1, 71],
             up: [0, 1, 0]
         },
         { 
-            position: [22.5, 25, 100],      // turn around go up and whilst looking down to see the entire factory (the end)
+            position: [50, 2, 87],         // turn around go up and whilst looking down to see the entire factory (the end)
+            target: [40, 1, 71],
+            up: [0, 1, 0]
+        },
+        { 
+            position: [50, 25, 95],      // turn around go up and whilst looking down to see the entire factory (the end)
             target: [0, 0, 0],
             up: [0, 1, 0]
         },
         {
-            position: [22.5, 50, 120],        // turn around go up and whilst looking down to see the entire factory (the end)
+            position: [50, 50, 120],        // turn around go up and whilst looking down to see the entire factory (the end)
             target: [0, 0, 0],
             up: [0, 1, 0]
         },
@@ -166,34 +166,217 @@ const Simulation = {
             
             // 0:40 -> Cookie former -> Rate: increase -> Good parts: small decrease
             { time: 40, component: 'CookieFormer', property: 'Rate', value: 180, duration: 1 },
-            { time: 40, component: 'CookieFormer', property: 'GoodParts', value: 94.5, duration: 1 },
+            { time: 40, component: 'CookieFormer', property: 'GoodParts', value: 81.5, duration: 1 },
+            { time: 40 , component: 'CookieFormer', property: 'Status', value: 'ACTIVE', duration: 0 },
             
             // 0:57 -> Mixer 0 -> Random rpm (between 0-120) and temperature change (above 0)
             { time: 57, component: 'Mixer_0', property: 'RPM', value: 115, duration: 1 },
             { time: 57, component: 'Mixer_0', property: 'Temperature', value: 140, duration: 1 },
             
-            // 1:00 -> Mixer_1 -> Random rpm and temperature change -> Alarm status: Acknowledged
-            { time: 60, component: 'Mixer_1', property: 'RPM', value: 90, duration: 1 },
-            { time: 60, component: 'Mixer_1', property: 'Temperature', value: 120, duration: 1 },
-            { time: 61, component: 'Mixer_1_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            // 1:00 - Multiple mixer updates
+            { time: 60, component: 'Mixer_3', property: 'RPM', value: 85, duration: 1 },
+            { time: 60, component: 'Mixer_7', property: 'Temperature', value: 145, duration: 1 },
+            { time: 60, component: 'Mixer_12', property: 'RPM', value: 110, duration: 1 },
+            { time: 60, component: 'Mixer_18', property: 'Temperature', value: 75, duration: 1 },
+            { time: 60.5, component: 'Mixer_3_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
             
-            // 1:00 -> Mixer_2 -> Random rpm and temperature change
-            { time: 60, component: 'Mixer_2', property: 'RPM', value: 75, duration: 1 },
-            { time: 60, component: 'Mixer_2', property: 'Temperature', value: 95, duration: 1 },
+            // 1:01
+            { time: 61, component: 'Mixer_1', property: 'RPM', value: 45, duration: 1 },
+            { time: 61, component: 'Mixer_9', property: 'Temperature', value: 165, duration: 1 },
+            { time: 61, component: 'Mixer_15', property: 'RPM', value: 0, duration: 1 },
+            { time: 61, component: 'Mixer_22', property: 'Temperature', value: 95, duration: 1 },
+            { time: 61.5, component: 'Mixer_15_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
             
-            // 1:04 -> Mixer_3 -> RPM decrease -> Status: acknowledged
-            { time: 64, component: 'Mixer_3', property: 'RPM', value: 15, duration: 1 },
-            { time: 65, component: 'Mixer_3_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            // 1:02
+            { time: 62, component: 'Mixer_5', property: 'RPM', value: 120, duration: 1 },
+            { time: 62, component: 'Mixer_11', property: 'Temperature', value: 35, duration: 1 },
+            { time: 62, component: 'Mixer_19', property: 'RPM', value: 75, duration: 1 },
+            { time: 62, component: 'Mixer_25', property: 'Temperature', value: 180, duration: 1 },
+            { time: 62.5, component: 'Mixer_25_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
             
-            // 1:09 -> Mixer_4 -> High RPM increase and high temperature increase -> Status alarm: Active
-            { time: 69, component: 'Mixer_4', property: 'RPM', value: 115, duration: 1 },
-            { time: 69, component: 'Mixer_4', property: 'Temperature', value: 160, duration: 1 },
-            { time: 70, component: 'Mixer_4_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            // 1:03
+            { time: 63, component: 'Mixer_2', property: 'Temperature', value: 125, duration: 1 },
+            { time: 63, component: 'Mixer_8', property: 'RPM', value: 95, duration: 1 },
+            { time: 63, component: 'Mixer_14', property: 'Temperature', value: 55, duration: 1 },
+            { time: 63, component: 'Mixer_20', property: 'RPM', value: 30, duration: 1 },
             
-            // 1:16 -> Mixer_5 -> RPM to 0 and Temperature to 19 -> Status alarm: active
-            { time: 72, component: 'Mixer_5', property: 'RPM', value: 0, duration: 1 },
-            { time: 72, component: 'Mixer_5', property: 'Temperature', value: 19, duration: 1 },
-            { time: 73, component: 'Mixer_5_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 }
+            // 1:04
+            { time: 64, component: 'Mixer_4', property: 'RPM', value: 105, duration: 1 },
+            { time: 64, component: 'Mixer_10', property: 'Temperature', value: 170, duration: 1 },
+            { time: 64, component: 'Mixer_16', property: 'RPM', value: 15, duration: 1 },
+            { time: 64, component: 'Mixer_23', property: 'Temperature', value: 40, duration: 1 },
+            { time: 64.5, component: 'Mixer_10_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:05
+            { time: 65, component: 'Mixer_6', property: 'Temperature', value: 115, duration: 1 },
+            { time: 65, component: 'Mixer_13', property: 'RPM', value: 80, duration: 1 },
+            { time: 65, component: 'Mixer_17', property: 'Temperature', value: 160, duration: 1 },
+            { time: 65, component: 'Mixer_21', property: 'RPM', value: 55, duration: 1 },
+            { time: 65, component: 'Mixer_24', property: 'Temperature', value: 25, duration: 1 },
+            
+            // 1:06
+            { time: 66, component: 'Mixer_0', property: 'RPM', value: 65, duration: 1 },
+            { time: 66, component: 'Mixer_7', property: 'RPM', value: 100, duration: 1 },
+            { time: 66, component: 'Mixer_12', property: 'Temperature', value: 50, duration: 1 },
+            { time: 66, component: 'Mixer_18', property: 'RPM', value: 90, duration: 1 },
+            { time: 66.5, component: 'Mixer_7_AlarmComponent', property: 'alarm_status', value: 'NORMAL', duration: 0 },
+            
+            // 1:07
+            { time: 67, component: 'Mixer_3', property: 'Temperature', value: 135, duration: 1 },
+            { time: 67, component: 'Mixer_9', property: 'RPM', value: 20, duration: 1 },
+            { time: 67, component: 'Mixer_15', property: 'Temperature', value: 85, duration: 1 },
+            { time: 67, component: 'Mixer_22', property: 'RPM', value: 115, duration: 1 },
+            
+            // 1:08
+            { time: 68, component: 'Mixer_1', property: 'Temperature', value: 155, duration: 1 },
+            { time: 68, component: 'Mixer_5', property: 'Temperature', value: 70, duration: 1 },
+            { time: 68, component: 'Mixer_11', property: 'RPM', value: 35, duration: 1 },
+            { time: 68, component: 'Mixer_19', property: 'Temperature', value: 175, duration: 1 },
+            { time: 68.5, component: 'Mixer_19_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:09
+            { time: 69, component: 'Mixer_2', property: 'RPM', value: 70, duration: 1 },
+            { time: 69, component: 'Mixer_8', property: 'Temperature', value: 45, duration: 1 },
+            { time: 69, component: 'Mixer_14', property: 'RPM', value: 120, duration: 1 },
+            { time: 69, component: 'Mixer_20', property: 'Temperature', value: 140, duration: 1 },
+            { time: 69, component: 'Mixer_25', property: 'RPM', value: 5, duration: 1 },
+            
+            // 1:10
+            { time: 70, component: 'Mixer_4', property: 'Temperature', value: 90, duration: 1 },
+            { time: 70, component: 'Mixer_10', property: 'RPM', value: 110, duration: 1 },
+            { time: 70, component: 'Mixer_16', property: 'Temperature', value: 30, duration: 1 },
+            { time: 70, component: 'Mixer_23', property: 'RPM', value: 85, duration: 1 },
+            { time: 70.5, component: 'Mixer_4_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:11
+            { time: 71, component: 'Mixer_6', property: 'RPM', value: 50, duration: 1 },
+            { time: 71, component: 'Mixer_13', property: 'Temperature', value: 105, duration: 1 },
+            { time: 71, component: 'Mixer_17', property: 'RPM', value: 95, duration: 1 },
+            { time: 71, component: 'Mixer_21', property: 'Temperature', value: 150, duration: 1 },
+            { time: 71, component: 'Mixer_24', property: 'RPM', value: 115, duration: 1 },
+            
+            // 1:12
+            { time: 72, component: 'Mixer_0', property: 'Temperature', value: 120, duration: 1 },
+            { time: 72, component: 'Mixer_7', property: 'Temperature', value: 65, duration: 1 },
+            { time: 72, component: 'Mixer_12', property: 'RPM', value: 40, duration: 1 },
+            { time: 72, component: 'Mixer_18', property: 'Temperature', value: 80, duration: 1 },
+            { time: 72.5, component: 'Mixer_21_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:13
+            { time: 73, component: 'Mixer_3', property: 'RPM', value: 25, duration: 1 },
+            { time: 73, component: 'Mixer_9', property: 'Temperature', value: 110, duration: 1 },
+            { time: 73, component: 'Mixer_15', property: 'RPM', value: 75, duration: 1 },
+            { time: 73, component: 'Mixer_22', property: 'Temperature', value: 60, duration: 1 },
+            
+            // 1:14
+            { time: 74, component: 'Mixer_1', property: 'RPM', value: 60, duration: 1 },
+            { time: 74, component: 'Mixer_5', property: 'RPM', value: 105, duration: 1 },
+            { time: 74, component: 'Mixer_11', property: 'Temperature', value: 175, duration: 1 },
+            { time: 74, component: 'Mixer_19', property: 'RPM', value: 10, duration: 1 },
+            { time: 74, component: 'Mixer_25', property: 'Temperature', value: 95, duration: 1 },
+            
+            // 1:15
+            { time: 75, component: 'Mixer_2', property: 'Temperature', value: 130, duration: 1 },
+            { time: 75, component: 'Mixer_8', property: 'RPM', value: 85, duration: 1 },
+            { time: 75, component: 'Mixer_14', property: 'Temperature', value: 35, duration: 1 },
+            { time: 75, component: 'Mixer_20', property: 'RPM', value: 100, duration: 1 },
+            { time: 75.5, component: 'Mixer_11_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:16
+            { time: 76, component: 'Mixer_4', property: 'RPM', value: 45, duration: 1 },
+            { time: 76, component: 'Mixer_10', property: 'Temperature', value: 55, duration: 1 },
+            { time: 76, component: 'Mixer_16', property: 'RPM', value: 120, duration: 1 },
+            { time: 76, component: 'Mixer_23', property: 'Temperature', value: 165, duration: 1 },
+            
+            // 1:17
+            { time: 77, component: 'Mixer_6', property: 'Temperature', value: 40, duration: 1 },
+            { time: 77, component: 'Mixer_13', property: 'RPM', value: 90, duration: 1 },
+            { time: 77, component: 'Mixer_17', property: 'Temperature', value: 125, duration: 1 },
+            { time: 77, component: 'Mixer_21', property: 'RPM', value: 15, duration: 1 },
+            { time: 77, component: 'Mixer_24', property: 'Temperature', value: 170, duration: 1 },
+            { time: 77.5, component: 'Mixer_23_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:18
+            { time: 78, component: 'Mixer_0', property: 'RPM', value: 80, duration: 1 },
+            { time: 78, component: 'Mixer_7', property: 'RPM', value: 35, duration: 1 },
+            { time: 78, component: 'Mixer_12', property: 'Temperature', value: 100, duration: 1 },
+            { time: 78, component: 'Mixer_18', property: 'RPM', value: 115, duration: 1 },
+            
+            // 1:19
+            { time: 79, component: 'Mixer_3', property: 'Temperature', value: 85, duration: 1 },
+            { time: 79, component: 'Mixer_9', property: 'RPM', value: 65, duration: 1 },
+            { time: 79, component: 'Mixer_15', property: 'Temperature', value: 145, duration: 1 },
+            { time: 79, component: 'Mixer_22', property: 'RPM', value: 95, duration: 1 },
+            { time: 79.5, component: 'Mixer_24_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:20
+            { time: 80, component: 'Mixer_1', property: 'Temperature', value: 30, duration: 1 },
+            { time: 80, component: 'Mixer_5', property: 'Temperature', value: 180, duration: 1 },
+            { time: 80, component: 'Mixer_11', property: 'RPM', value: 50, duration: 1 },
+            { time: 80, component: 'Mixer_19', property: 'Temperature', value: 110, duration: 1 },
+            { time: 80, component: 'Mixer_25', property: 'RPM', value: 120, duration: 1 },
+            
+            // 1:21
+            { time: 81, component: 'Mixer_2', property: 'RPM', value: 20, duration: 1 },
+            { time: 81, component: 'Mixer_8', property: 'Temperature', value: 75, duration: 1 },
+            { time: 81, component: 'Mixer_14', property: 'RPM', value: 105, duration: 1 },
+            { time: 81, component: 'Mixer_20', property: 'Temperature', value: 160, duration: 1 },
+            { time: 81.5, component: 'Mixer_5_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:22
+            { time: 82, component: 'Mixer_4', property: 'Temperature', value: 115, duration: 1 },
+            { time: 82, component: 'Mixer_10', property: 'RPM', value: 25, duration: 1 },
+            { time: 82, component: 'Mixer_16', property: 'Temperature', value: 70, duration: 1 },
+            { time: 82, component: 'Mixer_23', property: 'RPM', value: 90, duration: 1 },
+            
+            // 1:23
+            { time: 83, component: 'Mixer_6', property: 'RPM', value: 110, duration: 1 },
+            { time: 83, component: 'Mixer_13', property: 'Temperature', value: 135, duration: 1 },
+            { time: 83, component: 'Mixer_17', property: 'RPM', value: 55, duration: 1 },
+            { time: 83, component: 'Mixer_21', property: 'Temperature', value: 45, duration: 1 },
+            { time: 83, component: 'Mixer_24', property: 'RPM', value: 0, duration: 1 },
+            { time: 83.5, component: 'Mixer_13_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 },
+            
+            // 1:24
+            { time: 84, component: 'Mixer_0', property: 'Temperature', value: 155, duration: 1 },
+            { time: 84, component: 'Mixer_7', property: 'Temperature', value: 90, duration: 1 },
+            { time: 84, component: 'Mixer_12', property: 'RPM', value: 75, duration: 1 },
+            { time: 84, component: 'Mixer_18', property: 'Temperature', value: 25, duration: 1 },
+            
+            // 1:25
+            { time: 85, component: 'Mixer_3', property: 'RPM', value: 115, duration: 1 },
+            { time: 85, component: 'Mixer_9', property: 'Temperature', value: 170, duration: 1 },
+            { time: 85, component: 'Mixer_15', property: 'RPM', value: 30, duration: 1 },
+            { time: 85, component: 'Mixer_22', property: 'Temperature', value: 80, duration: 1 },
+            { time: 85.5, component: 'Mixer_9_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:26
+            { time: 86, component: 'Mixer_1', property: 'RPM', value: 95, duration: 1 },
+            { time: 86, component: 'Mixer_5', property: 'RPM', value: 40, duration: 1 },
+            { time: 86, component: 'Mixer_11', property: 'Temperature', value: 60, duration: 1 },
+            { time: 86, component: 'Mixer_19', property: 'RPM', value: 85, duration: 1 },
+            { time: 86, component: 'Mixer_25', property: 'Temperature', value: 140, duration: 1 },
+            
+            // 1:27
+            { time: 87, component: 'Mixer_2', property: 'Temperature', value: 105, duration: 1 },
+            { time: 87, component: 'Mixer_8', property: 'RPM', value: 120, duration: 1 },
+            { time: 87, component: 'Mixer_14', property: 'Temperature', value: 175, duration: 1 },
+            { time: 87, component: 'Mixer_20', property: 'RPM', value: 10, duration: 1 },
+            { time: 87.5, component: 'Mixer_14_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
+            
+            // 1:28
+            { time: 88, component: 'Mixer_4', property: 'RPM', value: 65, duration: 1 },
+            { time: 88, component: 'Mixer_10', property: 'Temperature', value: 35, duration: 1 },
+            { time: 88, component: 'Mixer_16', property: 'RPM', value: 100, duration: 1 },
+            { time: 88, component: 'Mixer_23', property: 'Temperature', value: 120, duration: 1 },
+            
+            // 1:29
+            { time: 89, component: 'Mixer_6', property: 'Temperature', value: 165, duration: 1 },
+            { time: 89, component: 'Mixer_13', property: 'RPM', value: 15, duration: 1 },
+            { time: 89, component: 'Mixer_17', property: 'Temperature', value: 50, duration: 1 },
+            { time: 89, component: 'Mixer_21', property: 'RPM', value: 110, duration: 1 },
+            { time: 89, component: 'Mixer_24', property: 'Temperature', value: 95, duration: 1 },
+            { time: 89.5, component: 'Mixer_6_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 }
         ]
     },
     
@@ -495,11 +678,19 @@ const Simulation = {
         // Track if any updates were made
         let updatesPerformed = false;
         
-        // Process scheduled events
+        // Process scheduled events (now includes hardcoded random mixer events from 1:00-1:30)
         this.updatePatterns.scheduledEvents.forEach(event => {
             // Check if this event should be triggered (considering a small window to ensure it's not missed)
             if (time >= event.time && time < event.time + 0.1) {
-                console.log(`Triggering scheduled event at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
+                // Identify if this is a random mixer event (between 1:00-1:30)
+                const isRandomEvent = event.time >= 60 && event.time < 90 && 
+                                    (event.component.startsWith('Mixer_') || event.component.includes('_AlarmComponent'));
+                
+                if (isRandomEvent) {
+                    console.log(`🎲 RANDOM MIXER EVENT at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
+                } else {
+                    console.log(`Triggering scheduled event at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
+                }
                 updatesPerformed = true;
                 
                 if (event.duration > 0) {
