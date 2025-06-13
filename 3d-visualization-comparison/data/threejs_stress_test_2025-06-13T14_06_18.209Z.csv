@@ -1,0 +1,16 @@
+=== STRESS TEST RESULTS - FREQUENCY ANALYSIS ===
+Framework: threejs
+Test Date: 2025-06-13T14:06:18.209Z
+
+Target_Frequency_Hz,Actual_Frequency_Hz,FPS,FPS_Drop_Percent,Latency_ms,Memory_MB,Dropped_Updates,Sync_Issues,Updates_Performed,Phase_Duration_s
+1,0.93,40,0.0,37,102,0,0,28,30.04
+5,4.39,38,5.0,34,100,0,0,132,30.08
+10,8.73,37,7.5,35,103,0,0,262,30.01
+25,8.76,37,7.5,34,105,0,0,263,30.02
+50,8.74,37,7.5,36,106,0,0,261,29.86
+
+=== SUMMARY STATISTICS ===
+Max_Stable_Frequency_Hz: 50
+Average_FPS_Drop_Percent: 5.5
+Total_Dropped_Updates: 0
+Performance_Rating: Excellent

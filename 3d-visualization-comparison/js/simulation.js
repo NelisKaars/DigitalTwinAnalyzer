@@ -529,8 +529,12 @@ const Simulation = {
         
         // Update digital twin data if interval has passed - use stress test data updates if in stress test mode
         if (now - this.config.lastDataUpdate > this.config.dataUpdateInterval) {
-            if (this.stressTest.enabled) {
-                this._updateDigitalTwinDataStressTest();
+            if (this.stressTest.enabled && this.stressTest.mode === 'maximum-throughput') {
+                // Only use old method for maximum throughput mode
+                this._handleMaximumThroughputUpdates(now);
+            } else if (this.stressTest.enabled && this.stressTest.mode === 'frequency-stepped') {
+                // For frequency-stepped, updates are handled by high-frequency timer
+                // Just update the last data update time to prevent normal data updates
             } else {
                 this._updateDigitalTwinData();
             }
@@ -798,6 +802,7 @@ const Simulation = {
         maxUpdatesPerFrame: 1,         // Updates per frame (calculated based on frequency)
         droppedUpdates: 0,             // Track missed/dropped updates
         syncIssues: 0,                 // Track desync incidents
+        timerId: null,                 // High-frequency timer ID
     },
 
     // Stress test camera waypoints - simple corner-to-corner loop focusing on mixers
@@ -927,11 +932,19 @@ const Simulation = {
         
         // Start the simulation with stress test configuration
         this.start(activeInstance);
+        
+        // CRITICAL FIX: Start high-frequency timer independent of requestAnimationFrame
+        if (mode === 'frequency-stepped') {
+            this._startHighFrequencyTimer();
+        }
     },
 
     // Stop stress test and restore normal simulation
     stopStressTest() {
         if (!this.stressTest.enabled) return;
+        
+        // Stop high-frequency timer if running
+        this._stopHighFrequencyTimer();
         
         // Complete the final phase if in frequency-stepped mode
         if (this.stressTest.mode === 'frequency-stepped' && this.stressTest.phaseResults.length <= this.stressTest.currentPhase) {
@@ -1076,7 +1089,9 @@ const Simulation = {
         }
         
         if (this.stressTest.mode === 'frequency-stepped') {
-            this._handleFrequencySteppedUpdates(now);
+            // Frequency-stepped updates are now handled by high-frequency timer
+            // This method is only called for maximum-throughput mode
+            console.log('Note: Frequency-stepped updates handled by high-frequency timer');
         } else {
             this._handleMaximumThroughputUpdates(now);
         }
@@ -1106,20 +1121,28 @@ const Simulation = {
             return;
         }
         
-        // Calculate if it's time for the next update based on target frequency
+        // FIXED: Use high-precision timing with no dependency on animation frames
         const targetInterval = 1000 / this.stressTest.targetUpdatesPerSecond; // ms between updates
         const timeSinceLastUpdate = now - this.stressTest.lastMixerUpdate;
         
-        if (timeSinceLastUpdate >= targetInterval) {
-            // Perform the update
-            this._performSingleRandomUpdate();
+        // Send multiple updates if we're behind schedule to catch up
+        const updatesDue = Math.floor(timeSinceLastUpdate / targetInterval);
+        
+        if (updatesDue >= 1) {
+            // Send up to 5 updates per call to catch up, but don't overwhelm
+            const updatesToSend = Math.min(updatesDue, 5);
             
-            // Track actual update time for frequency analysis
-            this.stressTest.actualUpdateTimes.push(now);
+            for (let i = 0; i < updatesToSend; i++) {
+                this._performSingleRandomUpdate();
+                
+                // Track actual update time for frequency analysis
+                this.stressTest.actualUpdateTimes.push(now);
+                this.stressTest.updateCycle++;
+            }
+            
             this.stressTest.lastMixerUpdate = now;
-            this.stressTest.updateCycle++;
             
-            // Update visualization immediately
+            // Update visualization after batch of updates
             this._updateVisualizationFromLatestState();
         }
     },
@@ -1220,6 +1243,32 @@ const Simulation = {
         this.stressTest.actualUpdateTimes = [];
         this.stressTest.droppedUpdates = 0;
         this.stressTest.syncIssues = 0;
+    },
+
+    // Start high-frequency timer for precise update timing (independent of render loop)
+    _startHighFrequencyTimer() {
+        // Use setInterval with 1ms precision for maximum update frequency
+        this.stressTest.timerId = setInterval(() => {
+            if (!this.stressTest.enabled || this.stressTest.mode !== 'frequency-stepped') {
+                clearInterval(this.stressTest.timerId);
+                this.stressTest.timerId = null;
+                return;
+            }
+            
+            const now = performance.now();
+            this._handleFrequencySteppedUpdates(now);
+        }, 1); // Check every 1ms for maximum precision
+        
+        console.log('High-frequency timer started for precise update control');
+    },
+
+    // Stop high-frequency timer
+    _stopHighFrequencyTimer() {
+        if (this.stressTest.timerId) {
+            clearInterval(this.stressTest.timerId);
+            this.stressTest.timerId = null;
+            console.log('High-frequency timer stopped');
+        }
     },
 
     // Start the next frequency phase
