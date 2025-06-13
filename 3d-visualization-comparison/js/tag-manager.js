@@ -245,6 +245,11 @@ class TagManager {
         if (Object.keys(styles).length > 0) {
             this.updateTagStyle(tagId, styles);
         }
+        
+        // Confirm any pending user interactions that might be waiting for visual updates
+        if (typeof MetricsCollector !== 'undefined' && MetricsCollector.confirmUserInteractionByContent) {
+            MetricsCollector.confirmUserInteractionByContent(tagId, data);
+        }
     }
     
     /**

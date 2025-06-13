@@ -55,6 +55,10 @@ const MetricsCollector = {
     // Reset all metrics
     reset() {
         this.stop();
+        
+        // Stop any ongoing time-series collection
+        this.stopTimeSeriesCollection();
+        
         this.metrics = {
             fps: [],
             memory: [],
@@ -68,9 +72,39 @@ const MetricsCollector = {
                 updateTimeouts: {}
             }
         };
+        
+        // Reset user interaction latency tracking
+        this.userInteractionLatency = {
+            pendingInteractions: {},
+            completedLatencies: [],
+            timeouts: {}
+        };
+        
+        // Reset simulation metrics
+        this.simulationMetrics = {
+            fps: [],
+            memory: [],
+            latency: [],
+            userInteractionLatencies: [],
+            startTime: 0,
+            endTime: 0,
+            finalUpdateAccuracy: 100,
+            timeSeries: []
+        };
+        
         this.config.frameTimeHistory = [];
         this.config.lastFrameTime = 0;
         this.config.lastMemoryCheck = 0;
+        
+        // Clear DOM display values
+        this.updateDOMMetric('fps', 0);
+        this.updateDOMMetric('memory', '0 MB');
+        this.updateDOMMetric('load-time', '0 ms');
+        this.updateDOMMetric('latency', '0 ms');
+        this.updateDOMMetric('user-latency', '0 ms');
+        this.updateDOMMetric('update-accuracy', '100%');
+        
+        console.log('All metrics reset for framework switch');
     },
     
     // Record model load time
@@ -82,6 +116,11 @@ const MetricsCollector = {
     // Record data binding latency
     recordLatency(latencyMs) {
         this.metrics.latency.push(latencyMs);
+        
+        // Store simulation latency if simulation is running
+        if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+            this.simulationMetrics.latency.push(latencyMs);
+        }
         
         // Trim the array if it exceeds the sample size
         if (this.metrics.latency.length > this.config.sampleSize) {
@@ -121,10 +160,14 @@ const MetricsCollector = {
         if (this.metrics.fps.length > this.config.sampleSize) {
             this.metrics.fps.shift();
         }
-        
-        // Update DOM
+         // Update DOM
         this.updateDOMMetric('fps', Math.round(currentFPS));
-        
+
+        // Store simulation FPS if simulation is running
+        if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+            this.simulationMetrics.fps.push(currentFPS);
+        }
+
         // Check memory if interval has passed
         const now = performance.now();
         if (now - this.config.lastMemoryCheck > this.config.memoryCheckInterval) {
@@ -150,14 +193,18 @@ const MetricsCollector = {
         if (window.performance && window.performance.memory) {
             const memory = window.performance.memory;
             const usedHeapMB = Math.round(memory.usedJSHeapSize / (1024 * 1024));
+             this.metrics.memory.push(usedHeapMB);
             
-            this.metrics.memory.push(usedHeapMB);
-            
+            // Store simulation memory if simulation is running
+            if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+                this.simulationMetrics.memory.push(usedHeapMB);
+            }
+
             // Limit memory history size
             if (this.metrics.memory.length > this.config.sampleSize) {
                 this.metrics.memory.shift();
             }
-            
+
             this.updateDOMMetric('memory', `${usedHeapMB} MB`);
         }
     },
@@ -172,15 +219,41 @@ const MetricsCollector = {
     
     // Export metrics to CSV format
     exportToCSV() {
-        const lines = ['Framework,Timestamp,FPS,Memory(MB),LoadTime(ms),LatencyAvg(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates'];
+        const lines = [];
+        
+        // Header for summary metrics
+        lines.push('=== SUMMARY METRICS ===');
+        lines.push('Framework,Timestamp,FPS,Memory(MB),LoadTime(ms),LatencyAvg(ms),UserInteractionLatency(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates');
         
         const timestamp = new Date().toISOString();
         const avgFPS = this.getAverageFPS();
         const avgMemory = this.getAverageMemory();
         const avgLatency = this.getAverageLatency();
+        const avgUserLatency = this.getAverageUserInteractionLatency();
         const accuracyStats = this.getUpdateAccuracyStats();
         
-        lines.push(`${this.metrics.framework},${timestamp},${avgFPS},${avgMemory},${this.metrics.loadTime},${avgLatency},${accuracyStats.accuracyPercentage},${accuracyStats.expectedUpdates},${accuracyStats.receivedUpdates},${accuracyStats.missedUpdates}`);
+        lines.push(`${this.metrics.framework},${timestamp},${avgFPS},${avgMemory},${this.metrics.loadTime},${avgLatency},${Math.round(avgUserLatency)},${accuracyStats.accuracyPercentage},${accuracyStats.expectedUpdates},${accuracyStats.receivedUpdates},${accuracyStats.missedUpdates}`);
+        
+        // Add simulation summary if available
+        if (this.simulationMetrics.startTime > 0) {
+            lines.push('');
+            lines.push('=== SIMULATION SUMMARY ===');
+            lines.push('SimulationFPS,SimulationMemory(MB),SimulationLatency(ms),SimulationUserLatency(ms),SimulationUpdateAccuracy(%),SimulationDuration(s)');
+            const simDuration = this.simulationMetrics.endTime > 0 ? 
+                (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
+            lines.push(`${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${this.getSimulationUpdateAccuracy()},${simDuration.toFixed(1)}`);
+        }
+        
+        // Add time-series data if available
+        if (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) {
+            lines.push('');
+            lines.push('=== TIME-SERIES DATA ===');
+            lines.push('ElapsedTime(s),FPS,Memory(MB),Latency(ms)');
+            
+            this.simulationMetrics.timeSeries.forEach(dataPoint => {
+                lines.push(`${dataPoint.timestamp.toFixed(1)},${dataPoint.fps},${dataPoint.memory},${dataPoint.latency}`);
+            });
+        }
         
         return lines.join('\n');
     },
@@ -217,6 +290,70 @@ const MetricsCollector = {
         document.body.removeChild(link);
     },
     
+    // Download simulation metrics as CSV
+    downloadSimulationCSV() {
+        console.log('downloadSimulationCSV called');
+        console.log('simulationMetrics:', this.simulationMetrics);
+        console.log('simulationMetrics.startTime:', this.simulationMetrics.startTime);
+        console.log('simulationMetrics.timeSeries length:', this.simulationMetrics.timeSeries ? this.simulationMetrics.timeSeries.length : 'undefined');
+        
+        // Check if we have ANY simulation data to export
+        const hasSimulationData = this.simulationMetrics.startTime > 0 || 
+                                 (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) ||
+                                 (this.simulationMetrics.fps && this.simulationMetrics.fps.length > 0);
+        
+        if (!hasSimulationData) {
+            // Fallback: export regular metrics with a note that no simulation was run
+            console.log('No simulation data found, exporting general metrics instead');
+            alert('No simulation data available. Downloading general metrics instead. Run a simulation for simulation-specific data.');
+            this.downloadCSV();
+            return;
+        }
+        
+        const csv = this.exportSimulationToCSV();
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${this.metrics.framework}_simulation_metrics_${new Date().toISOString()}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    },
+
+    // Export simulation metrics to CSV format
+    exportSimulationToCSV() {
+        console.log('exportSimulationToCSV called');
+        console.log('simulationMetrics at export:', this.simulationMetrics);
+        
+        const lines = [];
+        
+        // Header for simulation summary
+        lines.push('=== SIMULATION METRICS ===');
+        lines.push('Framework,SimulationDate,Duration(s),AvgFPS,AvgMemory(MB),AvgLatency(ms),UpdateAccuracy(%),ExpectedUpdates,ReceivedUpdates,MissedUpdates');
+        
+        const timestamp = new Date().toISOString();
+        const simDuration = this.simulationMetrics.endTime > 0 ? 
+            (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
+        const simAccuracy = this.getSimulationUpdateAccuracy();
+        
+        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
+        
+        // Add time-series data if available
+        if (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) {
+            lines.push('');
+            lines.push('=== SIMULATION TIME-SERIES DATA ===');
+            lines.push('Timestamp,FPS,Memory (MB),Data Binding Latency (ms)');
+            
+            this.simulationMetrics.timeSeries.forEach(dataPoint => {
+                lines.push(`${dataPoint.timestamp.toFixed(1)},${dataPoint.fps},${dataPoint.memory},${dataPoint.latency}`);
+            });
+        }
+        
+        return lines.join('\n');
+    },
+
     // Record an expected update (before sending to API)
     recordExpectedUpdate(component, property, value, timeout = 5000) {
         if (!this.config.isRunning) return;
@@ -226,6 +363,11 @@ const MetricsCollector = {
         
         this.metrics.updateAccuracy.expectedUpdates++;
         
+        // Also track in simulation if simulation is running
+        if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+            this.simulationMetrics.updateAccuracy.expectedUpdates++;
+        }
+        
         // Store pending update with expected value
         this.metrics.updateAccuracy.pendingUpdates[updateId] = {
             component,
@@ -234,11 +376,16 @@ const MetricsCollector = {
             timestamp: performance.now(),
             key: updateKey
         };
-        
         // Set timeout to mark as missed if not confirmed
         this.metrics.updateAccuracy.updateTimeouts[updateId] = setTimeout(() => {
             if (this.metrics.updateAccuracy.pendingUpdates[updateId]) {
                 this.metrics.updateAccuracy.missedUpdates++;
+                
+                // Also track in simulation if simulation is running
+                if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+                    this.simulationMetrics.updateAccuracy.missedUpdates++;
+                }
+                
                 delete this.metrics.updateAccuracy.pendingUpdates[updateId];
                 
                 // Update DOM with new accuracy percentage
@@ -277,6 +424,11 @@ const MetricsCollector = {
         
         if (matchedUpdateId && matchedUpdate) {
             this.metrics.updateAccuracy.receivedUpdates++;
+            
+            // Also track in simulation if simulation is running
+            if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+                this.simulationMetrics.updateAccuracy.receivedUpdates++;
+            }
             
             // Clear timeout and remove from pending
             if (this.metrics.updateAccuracy.updateTimeouts[matchedUpdateId]) {
@@ -332,4 +484,338 @@ const MetricsCollector = {
                         Math.round((accuracy.receivedUpdates / accuracy.expectedUpdates) * 100 * 100) / 100 : 100
         };
     },
+
+    // === SIMULATION-SPECIFIC METHODS ===
+    
+    // Simulation-specific metrics storage
+    simulationMetrics: {
+        fps: [],
+        memory: [],
+        latency: [],
+        startTime: 0,
+        endTime: 0,
+        finalUpdateAccuracy: 100,
+        timeSeries: [] // Store timestamped metrics for time-series analysis
+    },
+
+    // Start simulation-specific metrics collection
+    startSimulation() {
+        console.log('Starting simulation-specific metrics collection');
+        
+        // Reset simulation metrics
+        this.simulationMetrics = {
+            fps: [],
+            memory: [],
+            latency: [],
+            userInteractionLatencies: [], // Track user interaction latencies during simulation
+            startTime: performance.now(),
+            endTime: 0,
+            finalUpdateAccuracy: 100, // Start with 100% assumption
+            timeSeries: [],
+            updateAccuracy: {
+                expectedUpdates: 0,
+                receivedUpdates: 0,
+                missedUpdates: 0
+            }
+        };
+        
+        // Reset main update accuracy tracking for clean simulation start
+        this.metrics.updateAccuracy = {
+            expectedUpdates: 0,
+            receivedUpdates: 0,
+            missedUpdates: 0,
+            pendingUpdates: {},
+            updateTimeouts: {}
+        };
+        
+        // Clear main latency data to avoid contamination from pre-simulation operations
+        this.metrics.latency = [];
+        
+        // Start time-series data collection every second
+        this.startTimeSeriesCollection();
+    },
+
+    // Stop simulation-specific metrics collection
+    stopSimulation() {
+        console.log('Stopping simulation-specific metrics collection');
+        this.simulationMetrics.endTime = performance.now();
+        
+        // Stop time-series collection
+        this.stopTimeSeriesCollection();
+        
+        // Capture the final accuracy immediately (no timeout needed)
+        // Calculate accuracy based on simulation-specific data
+        const simAccuracy = this.simulationMetrics.updateAccuracy;
+        if (simAccuracy.expectedUpdates === 0) {
+            this.simulationMetrics.finalUpdateAccuracy = 100; // No updates = 100%
+        } else {
+            this.simulationMetrics.finalUpdateAccuracy = Math.round(
+                (simAccuracy.receivedUpdates / simAccuracy.expectedUpdates) * 100 * 100
+            ) / 100;
+        }
+        
+        console.log(`Final simulation update accuracy: ${this.simulationMetrics.finalUpdateAccuracy}%`);
+        console.log(`Simulation stats - Expected: ${simAccuracy.expectedUpdates}, Received: ${simAccuracy.receivedUpdates}, Missed: ${simAccuracy.missedUpdates}`);
+    },
+
+    // Get simulation-specific average FPS
+    getSimulationAverageFPS() {
+        if (this.simulationMetrics.fps.length === 0) return this.getAverageFPS();
+        return Math.round(this.simulationMetrics.fps.reduce((sum, val) => sum + val, 0) / this.simulationMetrics.fps.length);
+    },
+
+    // Get simulation-specific average memory
+    getSimulationAverageMemory() {
+        if (this.simulationMetrics.memory.length === 0) return this.getAverageMemory();
+        return Math.round(this.simulationMetrics.memory.reduce((sum, val) => sum + val, 0) / this.simulationMetrics.memory.length);
+    },
+
+    // Get simulation-specific average latency
+    getSimulationAverageLatency() {
+        if (this.simulationMetrics.latency.length === 0) return 0; // Return 0 if no latency during simulation
+        return Math.round(this.simulationMetrics.latency.reduce((sum, val) => sum + val, 0) / this.simulationMetrics.latency.length);
+    },
+
+    // Get simulation-specific update accuracy
+    getSimulationUpdateAccuracy() {
+        // Return the captured final accuracy, or current accuracy if not captured yet
+        return this.simulationMetrics.finalUpdateAccuracy || this.getUpdateAccuracy();
+    },
+
+    // === TIME-SERIES DATA COLLECTION ===
+    
+    // Start collecting time-series data every second during simulation
+    startTimeSeriesCollection() {
+        this.timeSeriesInterval = setInterval(() => {
+            if (this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+                const currentTime = performance.now();
+                const elapsedSeconds = (currentTime - this.simulationMetrics.startTime) / 1000;
+                
+                // Get current metrics
+                const currentFPS = this.metrics.fps.length > 0 ? 
+                    Math.round(this.metrics.fps[this.metrics.fps.length - 1]) : 0;
+                const currentMemory = this.metrics.memory.length > 0 ? 
+                    this.metrics.memory[this.metrics.memory.length - 1] : 0;
+                const currentLatency = this.metrics.latency.length > 0 ? 
+                    Math.round(this.metrics.latency.reduce((sum, val) => sum + val, 0) / this.metrics.latency.length) : 0;
+                
+                // Store time-series data point
+                this.simulationMetrics.timeSeries.push({
+                    timestamp: elapsedSeconds,
+                    fps: currentFPS,
+                    memory: currentMemory,
+                    latency: currentLatency
+                });               
+            }
+        }, 1000); // Collect every second
+    },
+
+    // Stop time-series data collection
+    stopTimeSeriesCollection() {
+        if (this.timeSeriesInterval) {
+            clearInterval(this.timeSeriesInterval);
+            this.timeSeriesInterval = null;
+            console.log(`Time-series collection stopped. Collected ${this.simulationMetrics.timeSeries.length} data points.`);
+        }
+    },
+
+    // === USER INTERACTION LATENCY TRACKING ===
+    
+    // User interaction latency storage
+    userInteractionLatency: {
+        pendingInteractions: {},    // Track pending user interactions by ID
+        completedLatencies: [],     // Store completed interaction latencies
+        timeouts: {}                // Track interaction timeout handlers
+    },
+
+    /**
+     * Start tracking a user interaction
+     * @param {string} controlId - ID of the control that was interacted with
+     * @param {string} controlType - Type of control (slider, dropdown, checkbox)
+     * @param {any} value - The value that was set
+     * @param {number} timeout - Timeout in ms to mark as failed (default 3000)
+     * @returns {string} - Interaction ID for tracking
+     */
+    startUserInteraction(controlId, controlType, value, timeout = 3000) {
+        if (!this.config.isRunning) {
+            console.log('MetricsCollector not running, skipping user interaction tracking');
+            return null;
+        }
+        
+        const interactionId = `${controlId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const startTime = performance.now();
+        
+        this.userInteractionLatency.pendingInteractions[interactionId] = {
+            controlId,
+            controlType,
+            value,
+            startTime,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Set timeout to mark as missed if not confirmed
+        this.userInteractionLatency.timeouts[interactionId] = setTimeout(() => {
+            if (this.userInteractionLatency.pendingInteractions[interactionId]) {
+                console.warn(`User interaction timeout: ${controlId} (${controlType}) = ${value}`);
+                delete this.userInteractionLatency.pendingInteractions[interactionId];
+            }
+            delete this.userInteractionLatency.timeouts[interactionId];
+        }, timeout);
+        
+        console.log(`Started tracking user interaction: ${controlId} (${controlType}) = ${value}`);
+        return interactionId;
+    },
+
+    /**
+     * Confirm a user interaction has completed (visual change detected)
+     * @param {string} interactionId - The interaction ID returned by startUserInteraction
+     * @returns {number|null} - The latency in ms, or null if interaction not found
+     */
+    confirmUserInteraction(interactionId) {
+        if (!interactionId || !this.userInteractionLatency.pendingInteractions[interactionId]) {
+            // Interaction already confirmed or doesn't exist
+            return null;
+        }
+        
+        const interaction = this.userInteractionLatency.pendingInteractions[interactionId];
+        const endTime = performance.now();
+        const latency = endTime - interaction.startTime;
+        
+        // Store completed latency
+        this.userInteractionLatency.completedLatencies.push({
+            controlId: interaction.controlId,
+            controlType: interaction.controlType,
+            value: interaction.value,
+            latency: latency,
+            timestamp: interaction.timestamp
+        });
+        
+        // Store simulation latency if simulation is running
+        if (this.simulationMetrics && this.simulationMetrics.startTime > 0 && this.simulationMetrics.endTime === 0) {
+            if (!this.simulationMetrics.userInteractionLatencies) {
+                this.simulationMetrics.userInteractionLatencies = [];
+            }
+            this.simulationMetrics.userInteractionLatencies.push(latency);
+        }
+        
+        // Clean up
+        if (this.userInteractionLatency.timeouts[interactionId]) {
+            clearTimeout(this.userInteractionLatency.timeouts[interactionId]);
+            delete this.userInteractionLatency.timeouts[interactionId];
+        }
+        delete this.userInteractionLatency.pendingInteractions[interactionId];
+        
+        console.log(`User interaction confirmed: ${interaction.controlId} (${interaction.controlType}) = ${interaction.value} - ${Math.round(latency)}ms`);
+        
+        // Update DOM with latest user interaction latency if available
+        this.updateDOMMetric('user-latency', `${Math.round(latency)} ms`);
+        
+        return latency;
+    },
+
+    /**
+     * Try to confirm user interactions based on content changes (for tag updates)
+     * @param {string} componentId - The component ID that was updated
+     * @param {object} data - The data that was updated
+     */
+    confirmUserInteractionByContent(componentId, data) {
+        // Look for pending interactions that might match this update
+        for (const [interactionId, interaction] of Object.entries(this.userInteractionLatency.pendingInteractions)) {
+            const shouldConfirm = this.shouldConfirmInteraction(interaction, componentId, data);
+            
+            console.log(`Checking interaction ${interactionId} (${interaction.controlId}): shouldConfirm = ${shouldConfirm}`);
+            
+            if (shouldConfirm) {
+                this.confirmUserInteraction(interactionId);
+                break; // Only confirm one interaction per update
+            }
+        }
+    },
+
+    /**
+     * Check if an interaction should be confirmed based on component update
+     * @param {object} interaction - The pending interaction
+     * @param {string} componentId - The component that was updated
+     * @param {object} data - The updated data
+     * @returns {boolean} - Whether this interaction should be confirmed
+     */
+    shouldConfirmInteraction(interaction, componentId, data) {
+        const { controlId, controlType, value } = interaction;
+        
+        // Map control IDs to component IDs and data fields
+        const controlMappings = {
+            'temp-control': { components: ['Mixer_'], dataField: 'temperature' },
+            'rpm-control': { components: ['Mixer_'], dataField: 'rpm' },
+            'alarm-status': { components: ['Mixer_'], dataField: 'status' },
+            'water-flow-control': { components: ['WaterTank'], dataField: 'flowRate' },
+            'water-volume-control': { components: ['WaterTank'], dataField: 'volume' },
+            'water-tank-status': { components: ['WaterTank'], dataField: 'status' },
+            'freezer-temp-control': { components: ['FreezerTunnel'], dataField: 'temperature' },
+            'freezer-status': { components: ['FreezerTunnel'], dataField: 'status' },
+            'liner-rpm-control': { components: ['PlasticLiner'], dataField: 'rpm' },
+            'liner-status': { components: ['PlasticLiner'], dataField: 'status' },
+            'cookie-rate-control': { components: ['CookieFormer'], dataField: 'productionRate' },
+            'cookie-quality-control': { components: ['CookieFormer'], dataField: 'goodParts' },
+            'cookie-former-status': { components: ['CookieFormer'], dataField: 'status' },
+            'box-sealer-speed': { components: ['BoxSealer'], dataField: 'speed' },
+            'box-sealer-status': { components: ['BoxSealer'], dataField: 'status' },
+            'conveyor-speed-control': { components: ['ConveyorSystem'], dataField: 'speed' },
+            'conveyor-status': { components: ['ConveyorSystem'], dataField: 'status' }
+        };
+        
+        const mapping = controlMappings[controlId];
+        if (!mapping) {
+            console.log(`No mapping found for control: ${controlId}`);
+            return false;
+        }
+        
+        // Check if component matches
+        const componentMatches = mapping.components.some(comp => 
+            comp.endsWith('_') ? componentId.startsWith(comp) : componentId === comp
+        );
+        
+        console.log(`Component match check: ${componentId} matches ${mapping.components}? ${componentMatches}`);
+        
+        if (!componentMatches) return false;
+        
+        // Check if the data field was updated with expected value
+        const dataValue = data[mapping.dataField];
+        console.log(`Data field check: ${mapping.dataField} = ${dataValue}, expected: ${value}`);
+        
+        if (dataValue === undefined) return false;
+        
+        // For numeric values, check with tolerance
+        if (typeof value === 'number' && typeof dataValue === 'number') {
+            const matches = Math.abs(dataValue - value) <= 0.1;
+            console.log(`Numeric match: ${matches}`);
+            return matches;
+        }
+        
+        // For strings, exact match
+        const matches = String(dataValue) === String(value);
+        console.log(`String match: ${matches}`);
+        return matches;
+    },
+
+    /**
+     * Get average user interaction latency
+     * @returns {number} - Average latency in ms
+     */
+    getAverageUserInteractionLatency() {
+        if (this.userInteractionLatency.completedLatencies.length === 0) return 0;
+        const sum = this.userInteractionLatency.completedLatencies.reduce((total, item) => total + item.latency, 0);
+        return Math.round(sum / this.userInteractionLatency.completedLatencies.length);
+    },
+
+    /**
+     * Get simulation-specific average user interaction latency
+     * @returns {number} - Average latency in ms during simulation
+     */
+    getSimulationUserInteractionLatency() {
+        if (!this.simulationMetrics.userInteractionLatencies || this.simulationMetrics.userInteractionLatencies.length === 0) {
+            return 0;
+        }
+        const sum = this.simulationMetrics.userInteractionLatencies.reduce((total, latency) => total + latency, 0);
+        return Math.round(sum / this.simulationMetrics.userInteractionLatencies.length);
+    }
 };

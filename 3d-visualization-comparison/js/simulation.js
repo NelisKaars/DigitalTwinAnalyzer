@@ -310,16 +310,17 @@ const Simulation = {
             this.config.cameraControlsEnabled = true;
         }
         
+        // IMPORTANT: Stop metrics collection BEFORE resetting twin data
+        // to avoid capturing the data binding latency spike from the reset
+        if (MetricsCollector.stopSimulation) {
+            MetricsCollector.stopSimulation();
+        }
+        
         // Resume normal polling
         DittoAPI.resumePolling();
         
         // Reset all twin values to their defaults
         this._resetTwinToDefaultValues();
-        
-        // Finalize metrics
-        if (MetricsCollector.stopSimulation) {
-            MetricsCollector.stopSimulation();
-        }
         
         if (this.callbacks.onComplete) {
             this.callbacks.onComplete();

@@ -87,7 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const componentSelector = document.getElementById('component-selector');
         if (componentSelector) {
             componentSelector.addEventListener('change', (e) => {
+                const interactionId = MetricsCollector.startUserInteraction('component-selector', 'dropdown', e.target.value);
                 switchComponentSection(e.target.value);
+                
+                // Confirm interaction immediately for UI changes
+                setTimeout(() => {
+                    MetricsCollector.confirmUserInteraction(interactionId);
+                }, 50);
             });
         }
         
@@ -95,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const factoryMixerSelector = document.getElementById('factory-mixer-selector');
         if (factoryMixerSelector) {
             factoryMixerSelector.addEventListener('change', (e) => {
+                const interactionId = MetricsCollector.startUserInteraction('factory-mixer-selector', 'dropdown', e.target.value);
                 dashboardState.selectedMixer = e.target.value;
                 
                 // Update UI to show current values for selected mixer
@@ -105,6 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update UI controls to reflect the selected mixer's values
                 DittoAPI.getTwinState().then(state => {
                     updateDashboardUI(state);
+                    
+                    // Confirm interaction after UI updates
+                    setTimeout(() => {
+                        MetricsCollector.confirmUserInteraction(interactionId);
+                    }, 100);
                 });
             });
         }
@@ -119,7 +131,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Alarm status dropdown with auto-update
         document.getElementById('alarm-status').addEventListener('change', (e) => {
+            const interactionId = MetricsCollector.startUserInteraction('alarm-status', 'dropdown', e.target.value);
             updateFactoryAlarmStatus(e.target.value);
+            
+            // Add fallback confirmation for alarm status
+            setTimeout(() => {
+                if (interactionId) {
+                    MetricsCollector.confirmUserInteraction(interactionId);
+                }
+            }, 1000);
         });
         
         // Water flow control for factory
@@ -176,9 +196,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggleTagsCheckbox = document.getElementById('toggle-tags');
         if (toggleTagsCheckbox) {
             toggleTagsCheckbox.addEventListener('change', () => {
+                const interactionId = MetricsCollector.startUserInteraction('toggle-tags', 'checkbox', toggleTagsCheckbox.checked);
+                
                 // Call the toggleTags method if it exists on the active framework
                 if (dashboardState.activeInstance && dashboardState.activeInstance.toggleTags) {
                     dashboardState.activeInstance.toggleTags(toggleTagsCheckbox.checked);
+                    
+                    // For tag visibility, we can confirm immediately since it's a visual change
+                    setTimeout(() => {
+                        MetricsCollector.confirmUserInteraction(interactionId);
+                    }, 50); // Small delay to account for rendering
                 }
             });
         }
@@ -186,6 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Download metrics CSV
         document.getElementById('download-metrics').addEventListener('click', () => {
             MetricsCollector.downloadCSV();
+        });
+        
+        // Download simulation metrics CSV
+        document.getElementById('download-sim-metrics').addEventListener('click', () => {
+            MetricsCollector.downloadSimulationCSV();
         });
         
         // ------- Simulation Controls -------
@@ -282,8 +314,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Handle when user stops sliding
         control.addEventListener('change', () => {
+            const interactionId = MetricsCollector.startUserInteraction(controlId, 'slider', control.value);
             updateFn(control.value);
             endUserInteraction();
+            
+            // For sliders, add a fallback confirmation if tag update doesn't trigger it
+            setTimeout(() => {
+                if (interactionId) {
+                    MetricsCollector.confirmUserInteraction(interactionId);
+                }
+            }, 1000); // Give 1 second for tag update to confirm, then force confirm
         });
     }
     
@@ -296,7 +336,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const control = document.getElementById(controlId);
         if (control) {
             control.addEventListener('change', (e) => {
+                const interactionId = MetricsCollector.startUserInteraction(controlId, 'dropdown', e.target.value);
                 DittoAPI.updateProperty(componentName, 'Status', e.target.value);
+                
+                // Add fallback confirmation for status controls
+                setTimeout(() => {
+                    if (interactionId) {
+                        MetricsCollector.confirmUserInteraction(interactionId);
+                    }
+                }, 1000);
             });
         }
     }
@@ -393,11 +441,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedMixer === 'all') {
             // Update all mixers
             for (let i = 0; i < 26; i++) {
-                DittoAPI.updateProperty(`Mixer_${i}`, 'alarm', alarmStatus);
+                DittoAPI.updateProperty(`Mixer_${i}_AlarmComponent`, 'alarm_status', alarmStatus);
             }
         } else {
             // Update only the selected mixer
-            DittoAPI.updateProperty(selectedMixer, 'alarm', alarmStatus);
+            DittoAPI.updateProperty(`${selectedMixer}_AlarmComponent`, 'alarm_status', alarmStatus);
         }
     }
     
@@ -729,6 +777,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Disable controls during simulation
         setSimulationControlsState(true);
         
+        // Reset progress bar to 0
+        updateSimulationProgress(0, 'normal');
+        
         // Initialize the simulation with default values
         Simulation.initialize({
             onProgress: updateSimulationProgress,
@@ -754,6 +805,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Disable controls during simulation
         setSimulationControlsState(true);
+        
+        // Reset progress bar to 0
+        updateSimulationProgress(0, 'stress-test');
         
         // Initialize the simulation with stress test callbacks
         Simulation.initialize({
@@ -797,11 +851,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pause-simulation').textContent = 'Pause';
         document.getElementById('pause-stress-test').textContent = 'Pause';
         
-        // Display simulation results
-        displaySimulationResults();
-        
-        // Show simulation metrics panel
-        document.querySelector('.simulation-metrics').style.display = 'block';
+        // Wait a bit for pending updates to complete before showing results
+        setTimeout(() => {
+            // Display simulation results after pending updates have time to complete
+            displaySimulationResults();
+            
+            // Show simulation metrics panel
+            document.querySelector('.simulation-metrics').style.display = 'block';
+        }, 1500); // Wait 1.5 seconds for pending updates to complete
     }
     
     /**
@@ -811,7 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function updateSimulationProgress(progress, simulationType = null) {
         // Use simulationType parameter if provided, otherwise fall back to dashboard state
-        const simType = dashboardState.simulationType;
+        const simType = simulationType || dashboardState.simulationType;
         
         if (simType === 'stress-test') {
             // Update stress test progress bar
@@ -820,6 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (progressFill) {
                 const percent = Math.round(progress * 100);
                 progressFill.style.width = `${percent}%`;
+                console.log(`Set stress-test progress to ${percent}%`);
             }
         } else {
             // Update normal simulation progress bar
@@ -870,7 +928,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     MetricsCollector.getSimulationAverageLatency() : 
                     MetricsCollector.getAverageLatency ? MetricsCollector.getAverageLatency() : 0;
                     
-        const updateAccuracy = MetricsCollector.getUpdateAccuracy ? MetricsCollector.getUpdateAccuracy() : 100;
+        const updateAccuracy = MetricsCollector.getSimulationUpdateAccuracy ? 
+                              MetricsCollector.getSimulationUpdateAccuracy() : 
+                              MetricsCollector.getUpdateAccuracy ? MetricsCollector.getUpdateAccuracy() : 100;
         const duration = Simulation.config.elapsedTime.toFixed(1);
         
         // Update UI
