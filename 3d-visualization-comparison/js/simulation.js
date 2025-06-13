@@ -361,22 +361,7 @@ const Simulation = {
             { time: 87, component: 'Mixer_2', property: 'Temperature', value: 105, duration: 1 },
             { time: 87, component: 'Mixer_8', property: 'RPM', value: 120, duration: 1 },
             { time: 87, component: 'Mixer_14', property: 'Temperature', value: 175, duration: 1 },
-            { time: 87, component: 'Mixer_20', property: 'RPM', value: 10, duration: 1 },
-            { time: 87.5, component: 'Mixer_14_AlarmComponent', property: 'alarm_status', value: 'ACTIVE', duration: 0 },
-            
-            // 1:28
-            { time: 88, component: 'Mixer_4', property: 'RPM', value: 65, duration: 1 },
-            { time: 88, component: 'Mixer_10', property: 'Temperature', value: 35, duration: 1 },
-            { time: 88, component: 'Mixer_16', property: 'RPM', value: 100, duration: 1 },
-            { time: 88, component: 'Mixer_23', property: 'Temperature', value: 120, duration: 1 },
-            
-            // 1:29
-            { time: 89, component: 'Mixer_6', property: 'Temperature', value: 165, duration: 1 },
-            { time: 89, component: 'Mixer_13', property: 'RPM', value: 15, duration: 1 },
-            { time: 89, component: 'Mixer_17', property: 'Temperature', value: 50, duration: 1 },
-            { time: 89, component: 'Mixer_21', property: 'RPM', value: 110, duration: 1 },
-            { time: 89, component: 'Mixer_24', property: 'Temperature', value: 95, duration: 1 },
-            { time: 89.5, component: 'Mixer_6_AlarmComponent', property: 'alarm_status', value: 'ACKNOWLEDGED', duration: 0 }
+            { time: 87, component: 'Mixer_20', property: 'RPM', value: 10, duration: 1 } 
         ]
     },
     
@@ -799,48 +784,42 @@ const Simulation = {
     // Stress test configuration for performance testing
     stressTest: {
         enabled: false,
-        duration: 30,                  // 30 seconds stress test
-        updateInterval: 5,             // 5ms between updates (much more intensive)
-        mixerUpdateDelay: 1,           // 5ms delay between each random mixer update
+        mode: 'frequency-stepped',     // 'frequency-stepped' or 'maximum-throughput'
+        duration: 30,                  // 30 seconds per frequency level
+        currentPhase: 0,               // Current frequency phase index
+        phaseStartTime: 0,             // When current phase started
+        updateFrequencies: [1, 5, 10, 25, 50], // Hz frequencies to test
+        updateInterval: 1,             // 1ms between data update checks
         lastMixerUpdate: 0,            // Timestamp of last update
         updateCycle: 0,                // Track total number of updates performed
+        targetUpdatesPerSecond: 1,     // Current target frequency
+        actualUpdateTimes: [],         // Track actual update timestamps for frequency analysis
+        phaseResults: [],              // Store results for each frequency phase
+        maxUpdatesPerFrame: 1,         // Updates per frame (calculated based on frequency)
+        droppedUpdates: 0,             // Track missed/dropped updates
+        syncIssues: 0,                 // Track desync incidents
     },
 
-    // Stress test camera waypoints - focused on mixer room corners
+    // Stress test camera waypoints - simple corner-to-corner loop focusing on mixers
     stressTestWaypoints: [
         { 
-            position: [20, 15, 90],       // High corner view of mixer room - corner 1 (mixers 0-6)
-            target: [30, 0, 75],
+            position: [20, 12, 90],       // Corner 1: Front-left view of mixer room
+            target: [35, 1, 75],          // Always looking at center of mixer area
             up: [0, 1, 0]
         },
         { 
-            position: [50, 15, 90],      // High corner view of mixer room - corner 2 (mixers 7-13)
-            target: [40, 0, 75],
+            position: [50, 12, 90],       // Corner 2: Front-right view of mixer room
+            target: [35, 1, 75],          // Always looking at center of mixer area
             up: [0, 1, 0]
         },
         { 
-            position: [50, 15, 60],      // High corner view of mixer room - corner 3 (mixers 14-19)
-            target: [40, 0, 75],
+            position: [50, 12, 60],       // Corner 3: Back-right view of mixer room
+            target: [35, 1, 75],          // Always looking at center of mixer area
             up: [0, 1, 0]
         },
         { 
-            position: [20, 15, 60],       // High corner view of mixer room - corner 4 (mixers 20-25)
-            target: [30, 0, 75],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [35, 25, 75],      // High overhead center view (all mixers)
-            target: [35, 0, 75],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [25, 8, 85],       // Low angle view - front half
-            target: [45, 3, 65],
-            up: [0, 1, 0]
-        },
-        { 
-            position: [45, 8, 65],       // Low angle view - back half
-            target: [25, 3, 85],
+            position: [20, 12, 60],       // Corner 4: Back-left view of mixer room
+            target: [35, 1, 75],          // Always looking at center of mixer area
             up: [0, 1, 0]
         }
     ],
@@ -904,13 +883,31 @@ const Simulation = {
     },
 
     // Start stress test simulation
-    startStressTest(activeInstance) {
+    startStressTest(activeInstance, mode = 'frequency-stepped') {
         if (this.config.isRunning) return;
         
         // Configure for stress test
         this.stressTest.enabled = true;
-        this.config.duration = this.stressTest.duration;
-        this.config.cameraPathDuration = this.stressTest.duration;
+        this.stressTest.mode = mode;
+        
+        if (mode === 'frequency-stepped') {
+            // Multi-phase frequency testing
+            this.config.duration = this.stressTest.duration * this.stressTest.updateFrequencies.length;
+            this.stressTest.currentPhase = 0;
+            this.stressTest.targetUpdatesPerSecond = this.stressTest.updateFrequencies[0];
+            this.stressTest.phaseResults = [];
+            console.log('Starting frequency-stepped stress test');
+            console.log('Testing frequencies:', this.stressTest.updateFrequencies, 'Hz');
+            console.log('Total duration:', this.config.duration, 'seconds');
+        } else {
+            // Maximum throughput testing (original behavior)
+            this.config.duration = this.stressTest.duration;
+            this.stressTest.targetUpdatesPerSecond = 1000; // Unlimited
+            this.stressTest.maxUpdatesPerFrame = 5;
+            console.log('Starting maximum throughput stress test');
+        }
+        
+        this.config.cameraPathDuration = this.config.duration;
         this.config.dataUpdateInterval = this.stressTest.updateInterval;
         
         // Replace normal waypoints with stress test waypoints
@@ -918,11 +915,15 @@ const Simulation = {
         this.waypoints = [...this.stressTestWaypoints];
         
         // Reset stress test state
-        this.stressTest.lastMixerUpdate = performance.now(); // Initialize to current time
-        this.stressTest.updateCycle = 0; // Track total updates
+        this.stressTest.lastMixerUpdate = performance.now();
+        this.stressTest.updateCycle = 0;
+        this.stressTest.startTime = performance.now();
+        this.stressTest.phaseStartTime = performance.now();
+        this.stressTest.actualUpdateTimes = [];
+        this.stressTest.droppedUpdates = 0;
+        this.stressTest.syncIssues = 0;
         
-        console.log('Starting stress test - random mixer updates every', this.stressTest.mixerUpdateDelay, 'ms for', this.stressTest.duration, 'seconds');
-        console.log('Camera focused on mixer room, updating random mixers with random properties');
+        console.log('Camera focused on mixer room for optimal observation of updates');
         
         // Start the simulation with stress test configuration
         this.start(activeInstance);
@@ -931,6 +932,34 @@ const Simulation = {
     // Stop stress test and restore normal simulation
     stopStressTest() {
         if (!this.stressTest.enabled) return;
+        
+        // Complete the final phase if in frequency-stepped mode
+        if (this.stressTest.mode === 'frequency-stepped' && this.stressTest.phaseResults.length <= this.stressTest.currentPhase) {
+            this._completeCurrentPhase();
+        }
+        
+        // Calculate and log overall results
+        const endTime = performance.now();
+        const actualDuration = (endTime - this.stressTest.startTime) / 1000;
+        
+        console.log('=== STRESS TEST COMPLETE ===');
+        console.log(`Total duration: ${actualDuration.toFixed(2)} seconds`);
+        console.log(`Total updates sent: ${this.stressTest.updateCycle}`);
+        
+        if (this.stressTest.mode === 'frequency-stepped') {
+            console.log('\n=== FREQUENCY ANALYSIS RESULTS ===');
+            this.stressTest.phaseResults.forEach((result, index) => {
+                console.log(`${result.targetFrequency}Hz: FPS=${result.fps}, Drop=${result.fpsDrop}%, Latency=${result.latency}ms, Memory=${result.memoryUsage}MB, Dropped=${result.droppedUpdates}`);
+            });
+            
+            // Export detailed results to CSV
+            this._exportStressTestResults();
+        } else {
+            const updatesPerSecond = this.stressTest.updateCycle / actualDuration;
+            console.log(`Framework throughput: ${updatesPerSecond.toFixed(2)} updates/sec`);
+        }
+        
+        console.log('============================');
         
         this.stressTest.enabled = false;
         
@@ -951,7 +980,93 @@ const Simulation = {
         this.stop();
     },
 
-    // Override the data update method for stress test - truly random updates
+    // Export stress test results to CSV format
+    _exportStressTestResults() {
+        if (this.stressTest.mode !== 'frequency-stepped' || this.stressTest.phaseResults.length === 0) {
+            return;
+        }
+        
+        const lines = [];
+        const framework = MetricsCollector.metrics.framework || 'unknown';
+        const timestamp = new Date().toISOString();
+        
+        // Header
+        lines.push('=== STRESS TEST RESULTS - FREQUENCY ANALYSIS ===');
+        lines.push(`Framework: ${framework}`);
+        lines.push(`Test Date: ${timestamp}`);
+        lines.push('');
+        
+        // CSV data
+        lines.push('Target_Frequency_Hz,Actual_Frequency_Hz,FPS,FPS_Drop_Percent,Latency_ms,Memory_MB,Dropped_Updates,Sync_Issues,Updates_Performed,Phase_Duration_s');
+        
+        this.stressTest.phaseResults.forEach(result => {
+            lines.push(`${result.targetFrequency},${result.actualFrequency},${result.fps},${result.fpsDrop},${result.latency},${result.memoryUsage},${result.droppedUpdates},${result.syncIssues},${result.updatesPerformed},${result.duration}`);
+        });
+        
+        // Summary statistics
+        lines.push('');
+        lines.push('=== SUMMARY STATISTICS ===');
+        const maxStableFreq = this._calculateMaxStableFrequency();
+        const avgFpsDrop = this._calculateAverageFpsDrop();
+        const totalDropped = this.stressTest.phaseResults.reduce((sum, r) => sum + r.droppedUpdates, 0);
+        
+        lines.push(`Max_Stable_Frequency_Hz: ${maxStableFreq}`);
+        lines.push(`Average_FPS_Drop_Percent: ${avgFpsDrop.toFixed(1)}`);
+        lines.push(`Total_Dropped_Updates: ${totalDropped}`);
+        lines.push(`Performance_Rating: ${this._calculatePerformanceRating()}`);
+        
+        // Download the CSV file
+        const csvContent = lines.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${framework}_stress_test_${timestamp}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('Stress test results exported to CSV');
+    },
+
+    // Calculate maximum stable frequency (highest freq with <30% FPS drop)
+    _calculateMaxStableFrequency() {
+        for (let i = this.stressTest.phaseResults.length - 1; i >= 0; i--) {
+            const result = this.stressTest.phaseResults[i];
+            if (parseFloat(result.fpsDrop) < 30) {
+                return result.targetFrequency;
+            }
+        }
+        return this.stressTest.phaseResults[0]?.targetFrequency || 1;
+    },
+
+    // Calculate average FPS drop across all phases
+    _calculateAverageFpsDrop() {
+        if (this.stressTest.phaseResults.length === 0) return 0;
+        const totalDrop = this.stressTest.phaseResults.reduce((sum, r) => sum + parseFloat(r.fpsDrop), 0);
+        return totalDrop / this.stressTest.phaseResults.length;
+    },
+
+    // Calculate overall performance rating
+    _calculatePerformanceRating() {
+        const maxStable = this._calculateMaxStableFrequency();
+        const avgDrop = this._calculateAverageFpsDrop();
+        const totalDropped = this.stressTest.phaseResults.reduce((sum, r) => sum + r.droppedUpdates, 0);
+        
+        let rating = 'Poor';
+        if (maxStable >= 25 && avgDrop < 25 && totalDropped < 10) {
+            rating = 'Excellent';
+        } else if (maxStable >= 10 && avgDrop < 40 && totalDropped < 20) {
+            rating = 'Good';
+        } else if (maxStable >= 5 && avgDrop < 60) {
+            rating = 'Fair';
+        }
+        
+        return rating;
+    },
+
+    // Override the data update method for stress test - supports both modes
     _updateDigitalTwinDataStressTest() {
         const now = performance.now();
         
@@ -960,16 +1075,80 @@ const Simulation = {
             this.stressTest.lastMixerUpdate = now;
         }
         
-        // Check if it's time for a random update (every 5ms)
-        if (now - this.stressTest.lastMixerUpdate >= this.stressTest.mixerUpdateDelay) {
-            // Pick a completely random mixer (0-25)
-            const randomMixerIndex = Math.floor(Math.random() * 26);
-            const mixerComponent = `Mixer_${randomMixerIndex}`;
-            const alarmComponent = `${mixerComponent}_AlarmComponent`;
+        if (this.stressTest.mode === 'frequency-stepped') {
+            this._handleFrequencySteppedUpdates(now);
+        } else {
+            this._handleMaximumThroughputUpdates(now);
+        }
+        
+        // Call data update callback
+        if (this.callbacks.onDataUpdate) {
+            this.callbacks.onDataUpdate();
+        }
+    },
+
+    // Handle frequency-stepped stress test updates
+    _handleFrequencySteppedUpdates(now) {
+        const phaseElapsed = (now - this.stressTest.phaseStartTime) / 1000;
+        
+        // Check if we need to advance to the next phase
+        if (phaseElapsed >= this.stressTest.duration) {
+            this._completeCurrentPhase();
             
-            // Pick a random property to update (40% RPM, 40% Temperature, 20% Alarm Status)
-            const randomProperty = Math.random();
+            // Move to next phase or complete test
+            this.stressTest.currentPhase++;
+            if (this.stressTest.currentPhase >= this.stressTest.updateFrequencies.length) {
+                this.stopStressTest();
+                return;
+            }
             
+            this._startNextPhase();
+            return;
+        }
+        
+        // Calculate if it's time for the next update based on target frequency
+        const targetInterval = 1000 / this.stressTest.targetUpdatesPerSecond; // ms between updates
+        const timeSinceLastUpdate = now - this.stressTest.lastMixerUpdate;
+        
+        if (timeSinceLastUpdate >= targetInterval) {
+            // Perform the update
+            this._performSingleRandomUpdate();
+            
+            // Track actual update time for frequency analysis
+            this.stressTest.actualUpdateTimes.push(now);
+            this.stressTest.lastMixerUpdate = now;
+            this.stressTest.updateCycle++;
+            
+            // Update visualization immediately
+            this._updateVisualizationFromLatestState();
+        }
+    },
+
+    // Handle maximum throughput stress test updates (original behavior)
+    _handleMaximumThroughputUpdates(now) {
+        // Send multiple updates per frame for maximum stress
+        for (let i = 0; i < this.stressTest.maxUpdatesPerFrame; i++) {
+            this._performSingleRandomUpdate();
+            this.stressTest.updateCycle++;
+        }
+        
+        this.stressTest.lastMixerUpdate = now;
+        
+        // Update visualization immediately after batch of updates
+        this._updateVisualizationFromLatestState();
+    },
+
+    // Perform a single random mixer update
+    _performSingleRandomUpdate() {
+        // Pick a completely random mixer (0-25)
+        const randomMixerIndex = Math.floor(Math.random() * 26);
+        const mixerComponent = `Mixer_${randomMixerIndex}`;
+        const alarmComponent = `${mixerComponent}_AlarmComponent`;
+        
+        // Pick a random property to update (40% RPM, 40% Temperature, 20% Alarm Status)
+        const randomProperty = Math.random();
+        
+        try {
             if (randomProperty < 0.4) {
                 // Update RPM with completely random value
                 const randomRpm = Math.floor(Math.random() * 121); // 0-120
@@ -986,28 +1165,81 @@ const Simulation = {
                 const randomStatus = statusOptions[Math.floor(Math.random() * statusOptions.length)];
                 DittoAPI.updateProperty(alarmComponent, 'alarm_status', randomStatus);
             }
-            
-            this.stressTest.lastMixerUpdate = now;
-            this.stressTest.updateCycle++;
-            
-            // Update visualization immediately after each random update for instant visual feedback
-            this._updateVisualizationFromLatestState();
-        }
-        
-        // Call data update callback
-        if (this.callbacks.onDataUpdate) {
-            this.callbacks.onDataUpdate();
+        } catch (error) {
+            // Count dropped updates if API call fails
+            this.stressTest.droppedUpdates++;
+            console.warn('Update failed, counted as dropped update:', error);
         }
     },
 
-    // Override camera update for stress test to use mixer room waypoints
+    // Complete current frequency phase and collect metrics
+    _completeCurrentPhase() {
+        const currentFreq = this.stressTest.updateFrequencies[this.stressTest.currentPhase];
+        const phaseEnd = performance.now();
+        const phaseDuration = (phaseEnd - this.stressTest.phaseStartTime) / 1000;
+        
+        // Calculate actual update frequency achieved
+        const updatesInPhase = this.stressTest.actualUpdateTimes.length;
+        const actualFrequency = updatesInPhase / phaseDuration;
+        
+        // Calculate FPS metrics during this phase
+        const currentFPS = MetricsCollector.getAverageFPS();
+        const baselineFPS = this.stressTest.phaseResults.length === 0 ? currentFPS : this.stressTest.phaseResults[0].fps;
+        const fpsDrop = ((baselineFPS - currentFPS) / baselineFPS) * 100;
+        
+        // Calculate average latency during this phase
+        const avgLatency = MetricsCollector.getAverageLatency();
+        
+        // Calculate memory usage
+        const memoryUsage = MetricsCollector.getAverageMemory();
+        
+        // Store phase results
+        const phaseResult = {
+            targetFrequency: currentFreq,
+            actualFrequency: actualFrequency.toFixed(2),
+            fps: currentFPS,
+            fpsDrop: fpsDrop.toFixed(1),
+            latency: avgLatency,
+            memoryUsage: memoryUsage,
+            droppedUpdates: this.stressTest.droppedUpdates,
+            syncIssues: this.stressTest.syncIssues,
+            updatesPerformed: updatesInPhase,
+            duration: phaseDuration.toFixed(2)
+        };
+        
+        this.stressTest.phaseResults.push(phaseResult);
+        
+        console.log(`=== PHASE ${this.stressTest.currentPhase + 1} COMPLETE (${currentFreq}Hz) ===`);
+        console.log(`Target: ${currentFreq}Hz, Actual: ${actualFrequency.toFixed(2)}Hz`);
+        console.log(`FPS: ${currentFPS}, Drop: ${fpsDrop.toFixed(1)}%`);
+        console.log(`Latency: ${avgLatency}ms, Memory: ${memoryUsage}MB`);
+        console.log(`Dropped: ${this.stressTest.droppedUpdates}, Updates: ${updatesInPhase}`);
+        console.log('================================================');
+        
+        // Reset phase-specific counters
+        this.stressTest.actualUpdateTimes = [];
+        this.stressTest.droppedUpdates = 0;
+        this.stressTest.syncIssues = 0;
+    },
+
+    // Start the next frequency phase
+    _startNextPhase() {
+        this.stressTest.targetUpdatesPerSecond = this.stressTest.updateFrequencies[this.stressTest.currentPhase];
+        this.stressTest.phaseStartTime = performance.now();
+        
+        console.log(`Starting Phase ${this.stressTest.currentPhase + 1}: ${this.stressTest.targetUpdatesPerSecond}Hz`);
+    },
+
+    // Override camera update for stress test to use simple corner-to-corner movement
     _updateCameraPositionStressTest() {
         if (!this.config.activeInstance || !this.config.activeInstance.setCameraPosition) {
             return;
         }
         
-        // Use stress test waypoints with slower transitions for better observation
-        const pathTime = (this.config.elapsedTime % this.config.cameraPathDuration) / this.config.cameraPathDuration;
+        // Simple repeating corner-to-corner movement throughout the entire 2.5 minutes
+        // Each complete cycle takes 30 seconds (7.5 seconds per corner)
+        const cycleTime = 30; // seconds for one complete cycle
+        const pathTime = (this.config.elapsedTime % cycleTime) / cycleTime;
         
         const waypointCount = this.stressTestWaypoints.length;
         const totalProgress = pathTime * waypointCount;
@@ -1018,6 +1250,7 @@ const Simulation = {
         const current = this.stressTestWaypoints[currentIndex];
         const next = this.stressTestWaypoints[nextIndex];
         
+        // Smooth interpolation between waypoints
         const position = this._interpolateVector(current.position, next.position, segmentProgress);
         const target = this._interpolateVector(current.target, next.target, segmentProgress);
         const up = this._interpolateVector(current.up, next.up, segmentProgress);

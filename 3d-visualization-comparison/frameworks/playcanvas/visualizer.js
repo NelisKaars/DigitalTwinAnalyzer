@@ -498,6 +498,7 @@ class PlayCanvasVisualizer {
         });
         
         if (allModelsLoaded) {
+            console.log("All factory components loaded");
             // Create status indicators for mixers
             this.createFactoryStatusIndicators();
             // Create position indicators to help with tag positioning
@@ -626,6 +627,33 @@ class PlayCanvasVisualizer {
                 };
             }
         });
+    }
+    
+    /**
+     * Create a debug sphere at a specific position (for debugging tag positioning)
+     * @param {pc.Vec3} position - World position for the debug sphere
+     * @param {string} name - Name for the debug sphere
+     */
+    createDebugSphere(position, name) {
+        if (!position) return;
+        
+        // Create a red sphere entity for debugging
+        const debugSphere = new pc.Entity(name);
+        debugSphere.addComponent("model", {
+            type: "sphere",
+            material: this.createMaterial(new pc.Color(1, 0, 0)) // Red color
+        });
+        
+        // Make it small but visible
+        debugSphere.setLocalScale(0.3, 0.3, 0.3);
+        
+        // Position at the exact tag position
+        debugSphere.setPosition(position.x, position.y, position.z);
+        
+        // Add to the scene
+        this.app.root.addChild(debugSphere);
+        
+        console.log(`Debug sphere '${name}' created at position:`, position.x, position.y, position.z);
     }
 
     /**

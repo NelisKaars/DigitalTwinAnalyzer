@@ -798,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Start the stress test simulation for performance testing
      */
-    function startStressTest() {
+    function startStressTest(mode = 'frequency-stepped') {
         // Update state
         dashboardState.isSimulationActive = true;
         dashboardState.simulationType = 'stress-test';
@@ -815,16 +815,19 @@ document.addEventListener('DOMContentLoaded', () => {
             onComplete: simulationComplete
         });
         
-        // Start the stress test with the active framework instance
-        Simulation.startStressTest(dashboardState.activeInstance);
+        // Start the stress test with the active framework instance and mode
+        Simulation.startStressTest(dashboardState.activeInstance, mode);
         
         // Update UI to show stress test mode
-        document.getElementById('simulation-mode-label').textContent = 'Mode: Stress Test - Rapid Mixer Updates';
+        const modeText = mode === 'frequency-stepped' ? 
+            'Frequency Analysis (1Hz-50Hz)' : 
+            'Maximum Throughput';
+        document.getElementById('simulation-mode-label').textContent = `Mode: Stress Test - ${modeText}`;
         
         // Show the timer at 00:00
         updateSimulationTimer(0);
         
-        console.log('Stress test started - monitoring all 26 mixers with rapid updates');
+        console.log(`Stress test started in ${mode} mode`);
     }
 
     /**

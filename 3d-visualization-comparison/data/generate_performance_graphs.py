@@ -54,24 +54,24 @@ FRAMEWORKS = {
 # Simulation phases for heatmap analysis
 SIMULATION_PHASES = [
     {
-        'name': 'Camera Movement',
+        'name': 'No data changes',
         'start': 0,
         'end': 15,
-        'description': 'No data changes (camera moves to cookie liner)',
+        'description': 'Camaera movement with no data changes',
         'color': '#e8f4f8'
     },
     {
         'name': 'Low Visual Impact',
         'start': 15,
         'end': 60,
-        'description': 'Data changes with low visual changes (cookie liner shown)',
+        'description': 'Data changes with low visual changes',
         'color': '#fff2cc'
     },
     {
         'name': 'High Visual Impact',
         'start': 60,
         'end': 90,
-        'description': 'Data changes with high visual changes (mixers active)',
+        'description': 'Data changes with high visual changes',
         'color': '#ffcccc'
     }
 ]
@@ -99,8 +99,16 @@ def find_csv_files(data_directory):
     csv_files = {}
     
     for framework in FRAMEWORKS.keys():
-        pattern = os.path.join(data_directory, f"{framework}_metrics_*.csv")
-        files = glob.glob(pattern)
+        # Try both patterns: regular metrics and simulation metrics
+        patterns = [
+            os.path.join(data_directory, f"{framework}_metrics_*.csv"),
+            os.path.join(data_directory, f"{framework}_simulation_metrics_*.csv")
+        ]
+        
+        files = []
+        for pattern in patterns:
+            files.extend(glob.glob(pattern))
+        
         if files:
             csv_files[framework] = sorted(files)  # Sort by filename (which includes timestamp)
             print(f"Found {len(files)} CSV files for {framework}")
@@ -196,7 +204,7 @@ def create_performance_graphs(data_dict, output_dir):
         {
             'metric': 'FPS',
             'column': 'FPS',
-            'title': 'Frames Per Second (FPS) Performance Comparison',
+            'title': 'FPS Performance Comparison',
             'ylabel': 'FPS',
             'filename': 'fps_comparison.png'
         },
@@ -277,21 +285,8 @@ def create_single_graph(data_dict, graph_config, output_dir):
     # Add grid
     ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
     
-    # Add legend (combine framework and phase legends)
-    framework_legend = ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=True)
-    ax.add_artist(framework_legend)  # Keep the framework legend
-    
-    # Create a separate legend for phases
-    phase_handles = []
-    phase_labels = []
-    for phase in SIMULATION_PHASES:
-        handle = plt.Rectangle((0,0),1,1, color=phase['color'], alpha=0.3)
-        phase_handles.append(handle)
-        phase_labels.append(f"{phase['name']}")
-    
-    ax.legend(phase_handles, phase_labels, 
-             loc='upper right', frameon=True, fancybox=True, shadow=True,
-             title='Simulation Phases')
+    # Add legend for frameworks only - bottom right position
+    ax.legend(loc='lower right', frameon=True, fancybox=True, shadow=True)
     
     # Set axis limits with some padding
     ax.margins(x=0.02, y=0.05)
@@ -580,7 +575,7 @@ def add_phase_backgrounds(ax, alpha=0.3):
 
 def combine_multiple_runs(dataframes_list):
     """
-    Combine multiple test runs for the same framework
+    Combine multiple test runs for the same framework by averaging metrics at each timestamp
     
     Args:
         dataframes_list (list): List of DataFrames from different runs
@@ -594,9 +589,87 @@ def combine_multiple_runs(dataframes_list):
     if len(dataframes_list) == 1:
         return dataframes_list[0]
     
-    # For now, just return the most recent run (last in sorted list)
-    # Could be enhanced to average multiple runs
-    return dataframes_list[-1]
+    print(f"Averaging {len(dataframes_list)} runs for this framework...")
+    
+    # Find the common time range across all runs (intersection)
+    min_time = max(df['Time'].min() for df in dataframes_list)
+    max_time = min(df['Time'].max() for df in dataframes_list)
+    
+    # Create a common time grid with 1-second intervals
+    time_grid = np.arange(min_time, max_time + 1, 1.0)
+    
+    # Initialize arrays for averaged metrics
+    avg_fps = []
+    avg_memory = []
+    avg_latency = []
+    
+    # For each timestamp, interpolate and average across all runs
+    for time_point in time_grid:
+        fps_values = []
+        memory_values = []
+        latency_values = []
+        
+        for df in dataframes_list:
+            # Find the closest timestamps and interpolate if needed
+            if time_point in df['Time'].values:
+                # Exact match
+                row = df[df['Time'] == time_point].iloc[0]
+            else:
+                # Linear interpolation between nearest points
+                before = df[df['Time'] <= time_point]
+                after = df[df['Time'] >= time_point]
+                
+                if len(before) > 0 and len(after) > 0:
+                    before_row = before.iloc[-1]  # Last row before time_point
+                    after_row = after.iloc[0]     # First row after time_point
+                    
+                    if before_row['Time'] == after_row['Time']:
+                        row = before_row
+                    else:
+                        # Linear interpolation
+                        weight = (time_point - before_row['Time']) / (after_row['Time'] - before_row['Time'])
+                        row = {}
+                        for col in ['FPS', 'Memory (MB)', 'Data Binding Latency (ms)']:
+                            if col in before_row and col in after_row:
+                                if pd.notna(before_row[col]) and pd.notna(after_row[col]):
+                                    row[col] = before_row[col] + weight * (after_row[col] - before_row[col])
+                                else:
+                                    row[col] = np.nan
+                            else:
+                                row[col] = np.nan
+                elif len(before) > 0:
+                    row = before.iloc[-1]
+                elif len(after) > 0:
+                    row = after.iloc[0]
+                else:
+                    continue  # Skip this time point
+            
+            # Collect values for averaging
+            if 'FPS' in row and pd.notna(row['FPS']):
+                fps_values.append(row['FPS'])
+            if 'Memory (MB)' in row and pd.notna(row['Memory (MB)']):
+                memory_values.append(row['Memory (MB)'])
+            if 'Data Binding Latency (ms)' in row and pd.notna(row['Data Binding Latency (ms)']):
+                latency_values.append(row['Data Binding Latency (ms)'])
+        
+        # Calculate averages
+        avg_fps.append(np.mean(fps_values) if fps_values else np.nan)
+        avg_memory.append(np.mean(memory_values) if memory_values else np.nan)
+        avg_latency.append(np.mean(latency_values) if latency_values else np.nan)
+    
+    # Create the averaged DataFrame
+    averaged_df = pd.DataFrame({
+        'Time': time_grid,
+        'FPS': avg_fps,
+        'Memory (MB)': avg_memory,
+        'Data Binding Latency (ms)': avg_latency
+    })
+    
+    # Remove rows where all metrics are NaN
+    averaged_df = averaged_df.dropna(subset=['FPS', 'Memory (MB)', 'Data Binding Latency (ms)'], how='all')
+    
+    print(f"✓ Created averaged dataset with {len(averaged_df)} time points")
+    return averaged_df
 
 def main():
     """Main function to orchestrate graph generation"""
@@ -630,6 +703,7 @@ Examples:
     if not csv_files:
         print("Error: No CSV files found matching the expected pattern")
         print("Expected files like: threejs_metrics_*.csv, babylonjs_metrics_*.csv, playcanvas_metrics_*.csv")
+        print("Or: threejs_simulation_metrics_*.csv, babylonjs_simulation_metrics_*.csv, playcanvas_simulation_metrics_*.csv")
         return 1
     
     # Parse CSV files and collect data
@@ -643,7 +717,7 @@ Examples:
                 dataframes.append(df)
         
         if dataframes:
-            # Combine multiple runs (for now, just use the latest)
+            # Combine multiple runs by averaging metrics at each timestamp
             framework_data[framework] = combine_multiple_runs(dataframes)
     
     if not framework_data:
