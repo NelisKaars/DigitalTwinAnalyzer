@@ -241,7 +241,7 @@ const MetricsCollector = {
             lines.push('SimulationFPS,SimulationMemory(MB),SimulationLatency(ms),SimulationUserLatency(ms),SimulationUpdateAccuracy(%),SimulationDuration(s)');
             const simDuration = this.simulationMetrics.endTime > 0 ? 
                 (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
-            lines.push(`${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${this.getSimulationUpdateAccuracy()},${simDuration.toFixed(1)}`);
+            lines.push(`${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationUserInteractionLatency()},${this.getSimulationUpdateAccuracy()},${simDuration.toFixed(1)}`);
         }
         
         // Add time-series data if available
@@ -292,10 +292,6 @@ const MetricsCollector = {
     
     // Download simulation metrics as CSV
     downloadSimulationCSV() {
-        console.log('downloadSimulationCSV called');
-        console.log('simulationMetrics:', this.simulationMetrics);
-        console.log('simulationMetrics.startTime:', this.simulationMetrics.startTime);
-        console.log('simulationMetrics.timeSeries length:', this.simulationMetrics.timeSeries ? this.simulationMetrics.timeSeries.length : 'undefined');
         
         // Check if we have ANY simulation data to export
         const hasSimulationData = this.simulationMetrics.startTime > 0 || 
@@ -324,9 +320,6 @@ const MetricsCollector = {
 
     // Export simulation metrics to CSV format
     exportSimulationToCSV() {
-        console.log('exportSimulationToCSV called');
-        console.log('simulationMetrics at export:', this.simulationMetrics);
-        
         const lines = [];
         
         // Header for simulation summary
@@ -338,7 +331,7 @@ const MetricsCollector = {
             (this.simulationMetrics.endTime - this.simulationMetrics.startTime) / 1000 : 0;
         const simAccuracy = this.getSimulationUpdateAccuracy();
         
-        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationAverageUserInteractionLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
+        lines.push(`${this.metrics.framework},${timestamp},${simDuration.toFixed(1)},${this.getSimulationAverageFPS()},${this.getSimulationAverageMemory()},${this.getSimulationAverageLatency()},${this.getSimulationUserInteractionLatency()},${simAccuracy},${this.simulationMetrics.updateAccuracy.expectedUpdates},${this.simulationMetrics.updateAccuracy.receivedUpdates},${this.simulationMetrics.updateAccuracy.missedUpdates}`);
         
         // Add time-series data if available
         if (this.simulationMetrics.timeSeries && this.simulationMetrics.timeSeries.length > 0) {
@@ -563,10 +556,7 @@ const MetricsCollector = {
             this.simulationMetrics.finalUpdateAccuracy = Math.round(
                 (simAccuracy.receivedUpdates / simAccuracy.expectedUpdates) * 100 * 100
             ) / 100;
-        }
-        
-        console.log(`Final simulation update accuracy: ${this.simulationMetrics.finalUpdateAccuracy}%`);
-        console.log(`Simulation stats - Expected: ${simAccuracy.expectedUpdates}, Received: ${simAccuracy.receivedUpdates}, Missed: ${simAccuracy.missedUpdates}`);
+        }       
     },
 
     // Get simulation-specific average FPS
@@ -616,9 +606,7 @@ const MetricsCollector = {
                     fps: currentFPS,
                     memory: currentMemory,
                     latency: currentLatency
-                });
-                
-                console.log(`Time-series data: ${elapsedSeconds.toFixed(1)}s - FPS: ${currentFPS}, Memory: ${currentMemory}MB, Latency: ${currentLatency}ms`);
+                });               
             }
         }, 1000); // Collect every second
     },
@@ -628,7 +616,6 @@ const MetricsCollector = {
         if (this.timeSeriesInterval) {
             clearInterval(this.timeSeriesInterval);
             this.timeSeriesInterval = null;
-            console.log(`Time-series collection stopped. Collected ${this.simulationMetrics.timeSeries.length} data points.`);
         }
     },
 
@@ -675,7 +662,6 @@ const MetricsCollector = {
             delete this.userInteractionLatency.timeouts[interactionId];
         }, timeout);
         
-        console.log(`Started tracking user interaction: ${controlId} (${controlType}) = ${value}`);
         return interactionId;
     },
 
@@ -718,7 +704,6 @@ const MetricsCollector = {
         }
         delete this.userInteractionLatency.pendingInteractions[interactionId];
         
-        console.log(`User interaction confirmed: ${interaction.controlId} (${interaction.controlType}) = ${interaction.value} - ${Math.round(latency)}ms`);
         
         // Update DOM with latest user interaction latency if available
         this.updateDOMMetric('user-latency', `${Math.round(latency)} ms`);
@@ -732,13 +717,20 @@ const MetricsCollector = {
      * @param {object} data - The data that was updated
      */
     confirmUserInteractionByContent(componentId, data) {
-        console.log(`Attempting to confirm interaction for component: ${componentId}`, data);
+        // Early return if metrics collection is not running
+        if (!this.config.isRunning) {
+            return;
+        }
+        
+        // Early return if no pending interactions
+        if (!this.userInteractionLatency.pendingInteractions || 
+            Object.keys(this.userInteractionLatency.pendingInteractions).length === 0) {
+            return;
+        }
         
         // Look for pending interactions that might match this update
         for (const [interactionId, interaction] of Object.entries(this.userInteractionLatency.pendingInteractions)) {
             const shouldConfirm = this.shouldConfirmInteraction(interaction, componentId, data);
-            
-            console.log(`Checking interaction ${interactionId} (${interaction.controlId}): shouldConfirm = ${shouldConfirm}`);
             
             if (shouldConfirm) {
                 this.confirmUserInteraction(interactionId);
@@ -780,7 +772,6 @@ const MetricsCollector = {
         
         const mapping = controlMappings[controlId];
         if (!mapping) {
-            console.log(`No mapping found for control: ${controlId}`);
             return false;
         }
         
@@ -789,26 +780,21 @@ const MetricsCollector = {
             comp.endsWith('_') ? componentId.startsWith(comp) : componentId === comp
         );
         
-        console.log(`Component match check: ${componentId} matches ${mapping.components}? ${componentMatches}`);
-        
         if (!componentMatches) return false;
         
         // Check if the data field was updated with expected value
         const dataValue = data[mapping.dataField];
-        console.log(`Data field check: ${mapping.dataField} = ${dataValue}, expected: ${value}`);
         
         if (dataValue === undefined) return false;
         
         // For numeric values, check with tolerance
         if (typeof value === 'number' && typeof dataValue === 'number') {
             const matches = Math.abs(dataValue - value) <= 0.1;
-            console.log(`Numeric match: ${matches}`);
             return matches;
         }
         
         // For strings, exact match
         const matches = String(dataValue) === String(value);
-        console.log(`String match: ${matches}`);
         return matches;
     },
 

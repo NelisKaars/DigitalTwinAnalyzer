@@ -686,11 +686,6 @@ const Simulation = {
                 const isRandomEvent = event.time >= 60 && event.time < 90 && 
                                     (event.component.startsWith('Mixer_') || event.component.includes('_AlarmComponent'));
                 
-                if (isRandomEvent) {
-                    console.log(`🎲 RANDOM MIXER EVENT at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
-                } else {
-                    console.log(`Triggering scheduled event at ${time.toFixed(1)}s: ${event.component}.${event.property} = ${event.value}`);
-                }
                 updatesPerformed = true;
                 
                 if (event.duration > 0) {
@@ -705,7 +700,6 @@ const Simulation = {
                         duration: event.duration,
                         currentValue: startValue
                     });
-                    console.log(`Added to pending events: ${event.component}.${event.property}: ${startValue} -> ${event.value} over ${event.duration}s`);
                 } else {
                     // Immediate change for events without duration (like status changes)
                     DittoAPI.updateProperty(event.component, event.property, event.value);
@@ -715,7 +709,6 @@ const Simulation = {
         
         // Process pending events (for smooth transitions)
         if (this._pendingEvents.length > 0) {
-            console.log(`Processing ${this._pendingEvents.length} pending events at time ${time.toFixed(2)}s`);
             updatesPerformed = true;
         }
         
@@ -731,7 +724,6 @@ const Simulation = {
                 time
             );
             
-            console.log(`Updating ${event.component}.${event.property} = ${event.currentValue} (progress: ${Math.min(1, Math.max(0, (time - event.startTime) / event.duration)).toFixed(2)})`);
             
             // Update the property with the interpolated value
             DittoAPI.updateProperty(event.component, event.property, 
@@ -809,51 +801,46 @@ const Simulation = {
         enabled: false,
         duration: 30,                  // 30 seconds stress test
         updateInterval: 5,             // 5ms between updates (much more intensive)
-        mixerUpdateDelay: 5,           // 5ms delay between each mixer property update
-        currentMixerIndex: 0,          // Track which mixer to update next
-        currentPropertyIndex: 0,       // Track which property to update next (RPM, Temperature, Alarm)
-        lastUpdate: 0,                 // Timestamp of last update
-        updateCycle: 0,                // Track update cycles
-        maxRpmVariation: 100,          // Maximum RPM variation for stress test
-        baseRpm: 60,                   // Base RPM value
-        propertyCycle: ['RPM', 'Temperature', 'alarm_status'], // Properties to cycle through
+        mixerUpdateDelay: 1,           // 5ms delay between each random mixer update
+        lastMixerUpdate: 0,            // Timestamp of last update
+        updateCycle: 0,                // Track total number of updates performed
     },
 
     // Stress test camera waypoints - focused on mixer room corners
     stressTestWaypoints: [
         { 
-            position: [5, 15, 90],       // High corner view of mixer room - corner 1 (mixers 0-6)
-            target: [15, 0, 75],
+            position: [20, 15, 90],       // High corner view of mixer room - corner 1 (mixers 0-6)
+            target: [30, 0, 75],
             up: [0, 1, 0]
         },
         { 
-            position: [35, 15, 90],      // High corner view of mixer room - corner 2 (mixers 7-13)
-            target: [25, 0, 75],
+            position: [50, 15, 90],      // High corner view of mixer room - corner 2 (mixers 7-13)
+            target: [40, 0, 75],
             up: [0, 1, 0]
         },
         { 
-            position: [35, 15, 60],      // High corner view of mixer room - corner 3 (mixers 14-19)
-            target: [25, 0, 75],
+            position: [50, 15, 60],      // High corner view of mixer room - corner 3 (mixers 14-19)
+            target: [40, 0, 75],
             up: [0, 1, 0]
         },
         { 
-            position: [5, 15, 60],       // High corner view of mixer room - corner 4 (mixers 20-25)
-            target: [15, 0, 75],
+            position: [20, 15, 60],       // High corner view of mixer room - corner 4 (mixers 20-25)
+            target: [30, 0, 75],
             up: [0, 1, 0]
         },
         { 
-            position: [20, 25, 75],      // High overhead center view (all mixers)
-            target: [20, 0, 75],
+            position: [35, 25, 75],      // High overhead center view (all mixers)
+            target: [35, 0, 75],
             up: [0, 1, 0]
         },
         { 
-            position: [10, 8, 85],       // Low angle view - front half
-            target: [30, 3, 65],
+            position: [25, 8, 85],       // Low angle view - front half
+            target: [45, 3, 65],
             up: [0, 1, 0]
         },
         { 
-            position: [30, 8, 65],       // Low angle view - back half
-            target: [10, 3, 85],
+            position: [45, 8, 65],       // Low angle view - back half
+            target: [25, 3, 85],
             up: [0, 1, 0]
         }
     ],
@@ -931,12 +918,11 @@ const Simulation = {
         this.waypoints = [...this.stressTestWaypoints];
         
         // Reset stress test state
-        this.stressTest.currentMixerIndex = 0;
-        this.stressTest.lastMixerUpdate = 0;
-        this.stressTest.updateCycle = 0;
+        this.stressTest.lastMixerUpdate = performance.now(); // Initialize to current time
+        this.stressTest.updateCycle = 0; // Track total updates
         
-        console.log('Starting stress test - rapid mixer updates for', this.stressTest.duration, 'seconds');
-        console.log('Camera focused on mixer room, updating all 26 mixers every', this.stressTest.mixerUpdateDelay * 26, 'ms');
+        console.log('Starting stress test - random mixer updates every', this.stressTest.mixerUpdateDelay, 'ms for', this.stressTest.duration, 'seconds');
+        console.log('Camera focused on mixer room, updating random mixers with random properties');
         
         // Start the simulation with stress test configuration
         this.start(activeInstance);
@@ -965,57 +951,47 @@ const Simulation = {
         this.stop();
     },
 
-    // Override the data update method for stress test
+    // Override the data update method for stress test - truly random updates
     _updateDigitalTwinDataStressTest() {
         const now = performance.now();
         
-        // Check if it's time to update the next mixer
-        if (now - this.stressTest.lastMixerUpdate >= this.stressTest.mixerUpdateDelay) {
-            const mixerIndex = this.stressTest.currentMixerIndex;
-            const mixerComponent = `Mixer_${mixerIndex}`;
-            
-            // Generate varying RPM values for visual impact
-            const baseRpm = this.stressTest.baseRpm;
-            const variation = this.stressTest.maxRpmVariation;
-            const cycleOffset = (this.stressTest.updateCycle + mixerIndex) * 0.1;
-            
-            // Create oscillating RPM pattern with different phases for each mixer
-            const rpmValue = Math.round(baseRpm + 
-                Math.sin(this.config.elapsedTime * 2 + cycleOffset) * variation * 0.5 +
-                Math.cos(this.config.elapsedTime * 1.5 + mixerIndex * 0.3) * variation * 0.3);
-            
-            // Ensure RPM is within reasonable bounds
-            const clampedRpm = Math.max(0, Math.min(120, rpmValue));
-            
-            // Generate varying temperature values
-            const tempVariation = 50;
-            const tempValue = Math.round(100 + 
-                Math.sin(this.config.elapsedTime * 1.8 + mixerIndex * 0.4) * tempVariation * 0.4 +
-                Math.cos(this.config.elapsedTime * 2.2 + cycleOffset) * tempVariation * 0.2);
-            
-            const clampedTemp = Math.max(20, Math.min(180, tempValue));
-            
-            // Update the mixer
-            DittoAPI.updateProperty(mixerComponent, 'RPM', clampedRpm);
-            DittoAPI.updateProperty(mixerComponent, 'Temperature', clampedTemp);
-            
-            // Log every 5th mixer update to avoid spam
-            if (mixerIndex % 5 === 0) {
-                console.log(`Stress test: Updated ${mixerComponent} - RPM: ${clampedRpm}, Temp: ${clampedTemp}`);
-            }
-            
-            // Move to next mixer
-            this.stressTest.currentMixerIndex = (this.stressTest.currentMixerIndex + 1) % 26;
+        // Initialize lastMixerUpdate if not set
+        if (!this.stressTest.lastMixerUpdate) {
             this.stressTest.lastMixerUpdate = now;
+        }
+        
+        // Check if it's time for a random update (every 5ms)
+        if (now - this.stressTest.lastMixerUpdate >= this.stressTest.mixerUpdateDelay) {
+            // Pick a completely random mixer (0-25)
+            const randomMixerIndex = Math.floor(Math.random() * 26);
+            const mixerComponent = `Mixer_${randomMixerIndex}`;
+            const alarmComponent = `${mixerComponent}_AlarmComponent`;
             
-            // If we've completed a full cycle through all mixers
-            if (this.stressTest.currentMixerIndex === 0) {
-                this.stressTest.updateCycle++;
-                console.log(`Stress test: Completed update cycle ${this.stressTest.updateCycle}`);
+            // Pick a random property to update (40% RPM, 40% Temperature, 20% Alarm Status)
+            const randomProperty = Math.random();
+            
+            if (randomProperty < 0.4) {
+                // Update RPM with completely random value
+                const randomRpm = Math.floor(Math.random() * 121); // 0-120
+                DittoAPI.updateProperty(mixerComponent, 'RPM', randomRpm);
                 
-                // Update visualization after each complete cycle
-                this._updateVisualizationFromLatestState();
+            } else if (randomProperty < 0.8) {
+                // Update Temperature with random value
+                const randomTemp = Math.floor(Math.random() * 161) + 20; // 20-180
+                DittoAPI.updateProperty(mixerComponent, 'Temperature', randomTemp);
+                
+            } else {
+                // Update Alarm Status with random value
+                const statusOptions = ['NORMAL', 'ACTIVE', 'ACKNOWLEDGED'];
+                const randomStatus = statusOptions[Math.floor(Math.random() * statusOptions.length)];
+                DittoAPI.updateProperty(alarmComponent, 'alarm_status', randomStatus);
             }
+            
+            this.stressTest.lastMixerUpdate = now;
+            this.stressTest.updateCycle++;
+            
+            // Update visualization immediately after each random update for instant visual feedback
+            this._updateVisualizationFromLatestState();
         }
         
         // Call data update callback

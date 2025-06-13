@@ -852,13 +852,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pause-stress-test').textContent = 'Pause';
         
         // Wait a bit for pending updates to complete before showing results
+        // Use longer delay for stress tests since they have more rapid updates
+        const isStressTest = dashboardState.simulationType === 'stress-test';
+        const delay = isStressTest ? 3500 : 1500; // 3.5 seconds for stress test, 1.5 for normal
+        
         setTimeout(() => {
             // Display simulation results after pending updates have time to complete
             displaySimulationResults();
             
             // Show simulation metrics panel
             document.querySelector('.simulation-metrics').style.display = 'block';
-        }, 1500); // Wait 1.5 seconds for pending updates to complete
+        }, delay);
     }
     
     /**
@@ -869,9 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateSimulationProgress(progress, simulationType = null) {
         // Use simulationType parameter if provided, otherwise fall back to dashboard state
         const simType = simulationType || dashboardState.simulationType;
-        
-        console.log(`Updating progress: ${progress} for type: ${simType}`);
-        
+           
         if (simType === 'stress-test') {
             // Update stress test progress bar
             const progressFill = document.getElementById('stress-test-progress-fill');
@@ -879,7 +881,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (progressFill) {
                 const percent = Math.round(progress * 100);
                 progressFill.style.width = `${percent}%`;
-                console.log(`Set stress-test progress to ${percent}%`);
             }
         } else {
             // Update normal simulation progress bar
@@ -888,7 +889,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (progressFill) {
                 const percent = Math.round(progress * 100);
                 progressFill.style.width = `${percent}%`;
-                console.log(`Set normal simulation progress to ${percent}%`);
             }
         }
     }
