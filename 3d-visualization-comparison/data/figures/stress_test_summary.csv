@@ -1,4 +1,0 @@
-Framework,Max_Stable_Rate_Hz,FPS_Drop_Percent,Missed_Updates,Observations
-Playcanvas,50,10,0,Stable throughout; Minimal losses
-Threejs,50,6,0,Stable throughout; Minimal losses
-Babylonjs,50,4,0,Stable throughout; Minimal losses

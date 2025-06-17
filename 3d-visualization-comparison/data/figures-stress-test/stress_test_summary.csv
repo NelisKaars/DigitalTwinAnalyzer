@@ -1,0 +1,2 @@
+Framework,Max_Stable_Rate_Hz,FPS_Drop_Percent,Missed_Updates,Observations
+Threejs,25,9,0,Stutters above 25Hz; Minimal losses

@@ -227,8 +227,247 @@ def create_performance_graphs(data_dict, output_dir):
     for graph in graphs:
         create_single_graph(data_dict, graph, output_dir)
     
+    # Create performance-impact graphs with meaningful x-axis metrics
+    print("Creating performance-impact graphs...")
+    create_performance_impact_graphs(data_dict, output_dir)
+    
     # Create heatmaps for phase analysis
     create_heatmaps(data_dict, output_dir)
+
+def create_performance_impact_graphs(data_dict, output_dir):
+    """Create performance-impact graphs with meaningful x-axis metrics instead of time"""
+    
+    # Define framework styling
+    framework_configs = {
+        'threejs': {'color': '#ff6b6b', 'marker': 'o', 'name': 'Three.js'},
+        'babylonjs': {'color': '#4ecdc4', 'marker': 's', 'name': 'Babylon.js'},
+        'playcanvas': {'color': '#45b7d1', 'marker': '^', 'name': 'PlayCanvas'}
+    }
+    
+    # Calculate derived metrics for each framework
+    enhanced_data = {}
+    for framework, df in data_dict.items():
+        if df is not None and not df.empty:
+            enhanced_df = df.copy()
+            
+            # Calculate detailed DATA THROUGHPUT based on simulation's scheduled events
+            enhanced_df['Data_Throughput'] = enhanced_df.apply(lambda row: _calculate_detailed_throughput(row['Time']), axis=1)
+            
+            enhanced_data[framework] = enhanced_df
+    
+    # Generate time-series graphs with throughput context
+    _create_fps_throughput_timeseries(enhanced_data, framework_configs, output_dir)
+    _create_memory_throughput_timeseries(enhanced_data, framework_configs, output_dir)
+    _create_latency_throughput_timeseries(enhanced_data, framework_configs, output_dir)
+
+def _calculate_detailed_throughput(time_seconds):
+    """Calculate data update throughput based on simulation's scheduled events - GRANULAR VERSION"""
+    # This mirrors the actual scheduled events in simulation.js with more granular values
+    
+    # Base activity periods
+    if 0 <= time_seconds <= 15:
+        return 1.0  # Base throughput
+    elif 15 < time_seconds <= 20:
+        return 2.5  # Gradual ramp up
+    elif 20 < time_seconds <= 35:
+        return 3.5  # Medium activity
+    elif 35 < time_seconds <= 40:
+        return 2.0  # Decreasing
+    elif 40 < time_seconds <= 57:
+        return 1.5  # Low activity period
+    
+    # High activity period with granular progression
+    elif 57 < time_seconds <= 60:
+        return 4.0 + (time_seconds - 57) * 1.0  # Ramp up: 4-7/sec
+    elif 60 < time_seconds <= 65:
+        return 12.0 + (time_seconds - 60) * 0.6  # Peak ramp: 12-15/sec
+    elif 65 < time_seconds <= 70:
+        return 15.0  # Sustained peak: 15/sec
+    elif 70 < time_seconds <= 75:
+        return 15.0 - (time_seconds - 70) * 1.0  # Gradual decrease: 15-10/sec
+    elif 75 < time_seconds <= 77:
+        return 10.0 - (time_seconds - 75) * 2.0  # Rapid decrease: 10-6/sec
+    elif 77 < time_seconds <= 85:
+        return 6.0 - (time_seconds - 77) * 0.5  # Slow decrease: 6-2/sec
+    elif 85 < time_seconds <= 90:
+        return 1.5  # Return to base
+    
+    else:
+        return 1.0  # Default base throughput
+
+def _create_fps_throughput_timeseries(enhanced_data, framework_configs, output_dir):
+    """Create FPS time-series with throughput overlay - CLEAN VERSION"""
+    fig, ax1 = plt.subplots(1, 1, figsize=(16, 8))
+    
+    # Add phase backgrounds first
+    add_phase_backgrounds(ax1, alpha=0.2)
+    
+    # Plot FPS for each framework
+    for framework, df in enhanced_data.items():
+        if df is not None and not df.empty:
+            config = framework_configs.get(framework, {})
+            
+            ax1.plot(df['Time'], df['FPS'], 
+                    color=config['color'], linewidth=3, 
+                    label=f"{config['name']}", marker=config['marker'], 
+                    markersize=5, alpha=0.9, markevery=5)
+    
+    # Create secondary y-axis for throughput
+    ax2 = ax1.twinx()
+    
+    # Plot throughput as filled area
+    sample_df = list(enhanced_data.values())[0]
+    ax2.fill_between(sample_df['Time'], sample_df['Data_Throughput'], 
+                     alpha=0.25, color='orange', label='Data Throughput')
+    ax2.plot(sample_df['Time'], sample_df['Data_Throughput'], 
+             color='darkorange', linewidth=2, alpha=0.8, linestyle='--')
+    
+    # Customize axes
+    ax1.set_title('Framework Performance vs Data Update Throughput', 
+                 fontsize=18, fontweight='bold', pad=20)
+    ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('FPS (Frames Per Second)', fontsize=14, fontweight='bold', color='blue')
+    ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
+    
+    # Style the axes
+    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='x', labelsize=12)
+    
+    ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax1.set_ylim(15, 65)
+    ax2.set_ylim(0, 18)
+    
+    # Legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    legend = ax1.legend(lines1 + lines2, labels1 + labels2, 
+              loc='upper right', fontsize=12, framealpha=1.0, 
+              facecolor='white', edgecolor='black', frameon=True, 
+              fancybox=False, shadow=False)
+    # Force legend background to be visible
+    legend.get_frame().set_facecolor('white')
+    legend.get_frame().set_edgecolor('black')
+    legend.get_frame().set_linewidth(1)
+    legend.get_frame().set_alpha(1.0)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/fps_vs_data_throughput_timeseries.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Generated: {output_dir}/fps_vs_data_throughput_timeseries.png")
+
+def _create_memory_throughput_timeseries(enhanced_data, framework_configs, output_dir):
+    """Create Memory time-series with throughput overlay"""
+    fig, ax1 = plt.subplots(1, 1, figsize=(16, 8))
+    
+    # Add phase backgrounds first
+    add_phase_backgrounds(ax1, alpha=0.2)
+    
+    # Plot Memory for each framework
+    for framework, df in enhanced_data.items():
+        if df is not None and not df.empty and 'Memory (MB)' in df.columns:
+            config = framework_configs.get(framework, {})
+            
+            ax1.plot(df['Time'], df['Memory (MB)'], 
+                    color=config['color'], linewidth=3, 
+                    label=f"{config['name']}", marker=config['marker'], 
+                    markersize=5, alpha=0.9, markevery=5)
+    
+    # Create secondary y-axis for throughput
+    ax2 = ax1.twinx()
+    
+    # Plot throughput as filled area
+    sample_df = list(enhanced_data.values())[0]
+    ax2.fill_between(sample_df['Time'], sample_df['Data_Throughput'], 
+                     alpha=0.25, color='orange', label='Data Throughput')
+    ax2.plot(sample_df['Time'], sample_df['Data_Throughput'], 
+             color='darkorange', linewidth=2, alpha=0.8, linestyle='--')
+    
+    # Customize axes
+    ax1.set_title('Memory Usage vs Data Update Throughput Over Time', 
+                 fontsize=18, fontweight='bold', pad=20)
+    ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Memory Usage (MB)', fontsize=14, fontweight='bold', color='blue')
+    ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
+    
+    # Style the axes
+    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='x', labelsize=12)
+    
+    ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax1.set_ylim(125, 250)  # Set specific memory range to avoid legend overlap
+    ax2.set_ylim(0, 18)
+    
+    # Legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    legend = ax1.legend(lines1 + lines2, labels1 + labels2, 
+              loc='upper left', fontsize=12, framealpha=1.0, 
+              facecolor='white', edgecolor='black', frameon=True, 
+              fancybox=False, shadow=False)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/memory_vs_data_throughput_timeseries.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Generated: {output_dir}/memory_vs_data_throughput_timeseries.png")
+
+def _create_latency_throughput_timeseries(enhanced_data, framework_configs, output_dir):
+    """Create Latency time-series with throughput overlay"""
+    fig, ax1 = plt.subplots(1, 1, figsize=(16, 8))
+    
+    # Add phase backgrounds first
+    add_phase_backgrounds(ax1, alpha=0.2)
+    
+    # Plot Latency for each framework
+    for framework, df in enhanced_data.items():
+        if df is not None and not df.empty and 'Data Binding Latency (ms)' in df.columns:
+            config = framework_configs.get(framework, {})
+            
+            ax1.plot(df['Time'], df['Data Binding Latency (ms)'], 
+                    color=config['color'], linewidth=3, 
+                    label=f"{config['name']}", marker=config['marker'], 
+                    markersize=5, alpha=0.9, markevery=5)
+    
+    # Create secondary y-axis for throughput
+    ax2 = ax1.twinx()
+    
+    # Plot throughput as filled area
+    sample_df = list(enhanced_data.values())[0]
+    ax2.fill_between(sample_df['Time'], sample_df['Data_Throughput'], 
+                     alpha=0.25, color='orange', label='Data Throughput')
+    ax2.plot(sample_df['Time'], sample_df['Data_Throughput'], 
+             color='darkorange', linewidth=2, alpha=0.8, linestyle='--')
+    
+    # Customize axes
+    ax1.set_title('Data Binding Latency vs Data Update Throughput Over Time', 
+                 fontsize=18, fontweight='bold', pad=20)
+    ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Data Binding Latency (ms)', fontsize=14, fontweight='bold', color='blue')
+    ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
+    
+    # Style the axes
+    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='x', labelsize=12)
+    
+    ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax2.set_ylim(0, 18)
+    
+    # Legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    legend = ax1.legend(lines1 + lines2, labels1 + labels2, 
+              loc='upper left', fontsize=12, framealpha=1.0, 
+              facecolor='white', edgecolor='black', frameon=True, 
+              fancybox=False, shadow=False)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/latency_vs_data_throughput_timeseries.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Generated: {output_dir}/latency_vs_data_throughput_timeseries.png")
+
+
 
 def create_single_graph(data_dict, graph_config, output_dir):
     """

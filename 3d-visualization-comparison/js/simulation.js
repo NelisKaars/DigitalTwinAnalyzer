@@ -662,6 +662,12 @@ const Simulation = {
     
     // Update digital twin data based on elapsed time
     _updateDigitalTwinData() {
+        // Safety check: If we just finished a stress test, don't process normal events
+        if (this.stressTest.enabled === false && this.stressTest.updateCycle > 0) {
+            console.log('Skipping normal data updates - stress test recently completed');
+            return;
+        }
+        
         const time = this.config.elapsedTime;
         
         // Track if any updates were made
@@ -799,10 +805,13 @@ const Simulation = {
         targetUpdatesPerSecond: 1,     // Current target frequency
         actualUpdateTimes: [],         // Track actual update timestamps for frequency analysis
         phaseResults: [],              // Store results for each frequency phase
+        timeSeriesData: [],            // Store detailed time-series data every second
+        lastTimeSeriesCapture: 0,      // Last time we captured time-series data
         maxUpdatesPerFrame: 1,         // Updates per frame (calculated based on frequency)
         droppedUpdates: 0,             // Track missed/dropped updates
         syncIssues: 0,                 // Track desync incidents
         timerId: null,                 // High-frequency timer ID
+        timeSeriesTimerId: null,       // Time-series data collection timer ID
     },
 
     // Stress test camera waypoints - simple corner-to-corner loop focusing on mixers
@@ -927,6 +936,8 @@ const Simulation = {
         this.stressTest.actualUpdateTimes = [];
         this.stressTest.droppedUpdates = 0;
         this.stressTest.syncIssues = 0;
+        this.stressTest.timeSeriesData = []; // Reset time-series data for new test
+        this.stressTest.lastTimeSeriesCapture = 0;
         
         console.log('Camera focused on mixer room for optimal observation of updates');
         
@@ -936,6 +947,7 @@ const Simulation = {
         // CRITICAL FIX: Start high-frequency timer independent of requestAnimationFrame
         if (mode === 'frequency-stepped') {
             this._startHighFrequencyTimer();
+            this._startTimeSeriesCollection();
         }
     },
 
@@ -943,8 +955,31 @@ const Simulation = {
     stopStressTest() {
         if (!this.stressTest.enabled) return;
         
-        // Stop high-frequency timer if running
-        this._stopHighFrequencyTimer();
+        console.log('=== INITIATING STRESS TEST SHUTDOWN ===');
+        
+        // BULLETPROOF TIMER SHUTDOWN: Multiple layers of protection
+        // Layer 1: Immediate flag disable to prevent new timer callbacks
+        this.stressTest.enabled = false;
+        this.config.isRunning = false;
+        
+        // Layer 2: Force-stop all timers with aggressive cleanup
+        this._emergencyTimerShutdown();
+        
+        // Layer 3: Clear all pending state that could trigger updates
+        this._pendingEvents = [];
+        this.stressTest.actualUpdateTimes = [];
+        
+        // Layer 4: Add a delay to ensure all timer callbacks have time to check the disabled flag
+        setTimeout(() => {
+            // Final verification that timers are truly stopped
+            if (this.stressTest.timerId !== null || this.stressTest.timeSeriesTimerId !== null) {
+                console.error('CRITICAL: Timers still active after shutdown, forcing emergency stop');
+                this._emergencyTimerShutdown();
+            }
+            console.log('Timer shutdown verification complete');
+        }, 100);
+        
+        console.log('Multi-layer timer shutdown initiated');
         
         // Complete the final phase if in frequency-stepped mode
         if (this.stressTest.mode === 'frequency-stepped' && this.stressTest.phaseResults.length <= this.stressTest.currentPhase) {
@@ -974,8 +1009,6 @@ const Simulation = {
         
         console.log('============================');
         
-        this.stressTest.enabled = false;
-        
         // Restore original waypoints
         if (this.originalWaypoints) {
             this.waypoints = [...this.originalWaypoints];
@@ -989,8 +1022,34 @@ const Simulation = {
         
         console.log('Stress test stopped, restored normal simulation configuration');
         
-        // Call normal stop method
-        this.stop();
+        // Re-enable camera controls
+        if (this.config.activeInstance && typeof this.config.activeInstance.setCameraControlsEnabled === 'function') {
+            this.config.activeInstance.setCameraControlsEnabled(true);
+            this.config.cameraControlsEnabled = true;
+        }
+        
+        // Stop metrics collection BEFORE resetting twin data
+        if (MetricsCollector.stopSimulation) {
+            MetricsCollector.stopSimulation();
+        }
+        
+        // PAUSE polling temporarily during reset to prevent interference
+        DittoAPI.pausePolling();
+        
+        // Reset all twin values to their defaults (but don't trigger further simulation)
+        this._resetTwinToDefaultValues();
+        
+        // Resume polling after a brief delay to allow reset to complete
+        setTimeout(() => {
+            DittoAPI.resumePolling();
+            console.log('DittoAPI polling resumed after reset');
+        }, 1000);
+        
+        if (this.callbacks.onComplete) {
+            this.callbacks.onComplete();
+        }
+        
+        console.log('Stress test and simulation completely stopped, twin values reset to defaults');
     },
 
     // Export stress test results to CSV format
@@ -999,17 +1058,29 @@ const Simulation = {
             return;
         }
         
-        const lines = [];
         const framework = MetricsCollector.metrics.framework || 'unknown';
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        
+        // Export phase summary data
+        this._exportPhaseSummaryCSV(framework, timestamp);
+        
+        // Export detailed time-series data
+        this._exportTimeSeriesCSV(framework, timestamp);
+        
+        console.log('Stress test results exported: phase summary and detailed time-series data');
+    },
+
+    // Export phase summary CSV (original format for overview)
+    _exportPhaseSummaryCSV(framework, timestamp) {
+        const lines = [];
         
         // Header
-        lines.push('=== STRESS TEST RESULTS - FREQUENCY ANALYSIS ===');
+        lines.push('=== STRESS TEST PHASE SUMMARY ===');
         lines.push(`Framework: ${framework}`);
         lines.push(`Test Date: ${timestamp}`);
         lines.push('');
         
-        // CSV data
+        // Phase summary CSV data
         lines.push('Target_Frequency_Hz,Actual_Frequency_Hz,FPS,FPS_Drop_Percent,Latency_ms,Memory_MB,Dropped_Updates,Sync_Issues,Updates_Performed,Phase_Duration_s');
         
         this.stressTest.phaseResults.forEach(result => {
@@ -1028,19 +1099,60 @@ const Simulation = {
         lines.push(`Total_Dropped_Updates: ${totalDropped}`);
         lines.push(`Performance_Rating: ${this._calculatePerformanceRating()}`);
         
-        // Download the CSV file
+        // Download the phase summary CSV file
         const csvContent = lines.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `${framework}_stress_test_${timestamp}.csv`);
+        link.setAttribute('download', `${framework}_stress_test_summary_${timestamp}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    },
+
+    // Export detailed time-series CSV for smooth graphs
+    _exportTimeSeriesCSV(framework, timestamp) {
+        if (this.stressTest.timeSeriesData.length === 0) {
+            console.log('No time-series data to export');
+            return;
+        }
+        
+        const lines = [];
+        
+        // Header
+        lines.push('=== STRESS TEST TIME-SERIES DATA ===');
+        lines.push(`Framework: ${framework}`);
+        lines.push(`Test Date: ${timestamp}`);
+        lines.push(`Total Data Points: ${this.stressTest.timeSeriesData.length}`);
+        lines.push('');
+        
+        // Time-series CSV header
+        lines.push('Timestamp_ms,Test_Time_s,Phase,Phase_Elapsed_s,Target_Frequency_Hz,Actual_Frequency_Hz,Frequency_Ratio,FPS,Render_Time_ms,Memory_MB,Total_Updates,Dropped_Updates,Sync_Issues');
+        
+        // Calculate test start time for relative timestamps
+        const testStartTime = this.stressTest.timeSeriesData[0].timestamp;
+        
+        // Export each data point
+        this.stressTest.timeSeriesData.forEach(point => {
+            const testTime = Math.round((point.timestamp - testStartTime) / 100) / 10; // Round to 0.1s
+            lines.push(`${point.timestamp},${testTime},${point.phase},${point.phaseElapsed},${point.targetFrequency},${point.actualFrequency},${point.frequencyRatio.toFixed(3)},${point.fps},${point.renderTime},${point.memoryUsage},${point.updateCycle},${point.droppedUpdates},${point.syncIssues}`);
+        });
+        
+        // Download the time-series CSV file
+        const csvContent = lines.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${framework}_stress_test_timeseries_${timestamp}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        console.log('Stress test results exported to CSV');
+        console.log(`Time-series data exported: ${this.stressTest.timeSeriesData.length} data points`);
     },
 
     // Calculate maximum stable frequency (highest freq with <30% FPS drop)
@@ -1104,6 +1216,16 @@ const Simulation = {
 
     // Handle frequency-stepped stress test updates
     _handleFrequencySteppedUpdates(now) {
+        // BULLETPROOF: Check ALL stop conditions at the start of every method call
+        if (!this.stressTest.enabled || 
+            !this.config.isRunning || 
+            this.stressTest.mode !== 'frequency-stepped' ||
+            this.stressTest.timerId === null ||
+            this.stressTest.timerId === undefined) {
+            console.log('_handleFrequencySteppedUpdates: ABORT - stop condition detected');
+            return;
+        }
+        
         const phaseElapsed = (now - this.stressTest.phaseStartTime) / 1000;
         
         // Check if we need to advance to the next phase
@@ -1133,6 +1255,11 @@ const Simulation = {
             const updatesToSend = Math.min(updatesDue, 5);
             
             for (let i = 0; i < updatesToSend; i++) {
+                // Double-check that stress test is still enabled before each update
+                if (!this.stressTest.enabled) {
+                    return;
+                }
+                
                 this._performSingleRandomUpdate();
                 
                 // Track actual update time for frequency analysis
@@ -1163,6 +1290,11 @@ const Simulation = {
 
     // Perform a single random mixer update
     _performSingleRandomUpdate() {
+        // Safety check: ensure stress test is still enabled
+        if (!this.stressTest.enabled) {
+            return;
+        }
+        
         // Pick a completely random mixer (0-25)
         const randomMixerIndex = Math.floor(Math.random() * 26);
         const mixerComponent = `Mixer_${randomMixerIndex}`;
@@ -1197,6 +1329,12 @@ const Simulation = {
 
     // Complete current frequency phase and collect metrics
     _completeCurrentPhase() {
+        // BULLETPROOF: Check if stress test is still enabled before doing ANY phase completion work
+        if (!this.stressTest.enabled || !this.config.isRunning) {
+            console.log('Phase completion aborted - stress test already stopped');
+            return;
+        }
+        
         const currentFreq = this.stressTest.updateFrequencies[this.stressTest.currentPhase];
         const phaseEnd = performance.now();
         const phaseDuration = (phaseEnd - this.stressTest.phaseStartTime) / 1000;
@@ -1247,9 +1385,31 @@ const Simulation = {
 
     // Start high-frequency timer for precise update timing (independent of render loop)
     _startHighFrequencyTimer() {
+        // Ensure any existing timer is stopped first
+        this._stopHighFrequencyTimer();
+        
         // Use setInterval with 1ms precision for maximum update frequency
         this.stressTest.timerId = setInterval(() => {
-            if (!this.stressTest.enabled || this.stressTest.mode !== 'frequency-stepped') {
+            // BULLETPROOF: Triple-check ALL stop conditions to prevent ANY execution after stop
+            if (!this.stressTest.enabled || 
+                this.stressTest.mode !== 'frequency-stepped' || 
+                this.stressTest.timerId === null || 
+                this.stressTest.timerId === undefined ||
+                !this.config.isRunning) {
+                
+                console.log('Timer callback detected stop condition - IMMEDIATE ABORT');
+                
+                // Self-destruct: Clear this interval immediately
+                if (this.stressTest.timerId) {
+                    clearInterval(this.stressTest.timerId);
+                    this.stressTest.timerId = null;
+                }
+                return; // CRITICAL: Exit immediately, no further processing
+            }
+            
+            // Additional safety: Verify stress test is still in correct state
+            if (this.stressTest.mode !== 'frequency-stepped') {
+                console.log('Timer callback detected mode change - ABORTING');
                 clearInterval(this.stressTest.timerId);
                 this.stressTest.timerId = null;
                 return;
@@ -1265,10 +1425,43 @@ const Simulation = {
     // Stop high-frequency timer
     _stopHighFrequencyTimer() {
         if (this.stressTest.timerId) {
+            console.log(`Stopping high frequency timer: ${this.stressTest.timerId}`);
             clearInterval(this.stressTest.timerId);
             this.stressTest.timerId = null;
             console.log('High-frequency timer stopped');
         }
+        
+        // Also forcefully disable the timer flag to prevent any race conditions
+        if (this.stressTest.timerId !== null) {
+            console.warn('Timer ID was not properly cleared, forcing to null');
+            this.stressTest.timerId = null;
+        }
+    },
+
+    // BULLETPROOF EMERGENCY TIMER SHUTDOWN
+    _emergencyTimerShutdown() {
+        console.log('=== EMERGENCY TIMER SHUTDOWN ===');
+        
+        // Force clear high frequency timer with multiple safety checks
+        if (this.stressTest.timerId !== null && this.stressTest.timerId !== undefined) {
+            console.log(`Force clearing high frequency timer: ${this.stressTest.timerId}`);
+            clearInterval(this.stressTest.timerId);
+            this.stressTest.timerId = null;
+        }
+        
+        // Force clear time series timer with multiple safety checks
+        if (this.stressTest.timeSeriesTimerId !== null && this.stressTest.timeSeriesTimerId !== undefined) {
+            console.log(`Force clearing time series timer: ${this.stressTest.timeSeriesTimerId}`);
+            clearInterval(this.stressTest.timeSeriesTimerId);
+            this.stressTest.timeSeriesTimerId = null;
+        }
+        
+        // Nuclear option: Clear ALL intervals on the page (last resort for persistent timers)
+        for (let i = 1; i < 10000; i++) {
+            clearInterval(i);
+        }
+        
+        console.log('Emergency timer shutdown complete - ALL intervals cleared');
     },
 
     // Start the next frequency phase
@@ -1305,6 +1498,103 @@ const Simulation = {
         const up = this._interpolateVector(current.up, next.up, segmentProgress);
         
         this.config.activeInstance.setCameraPosition(position, target, up);
+    },
+
+    // Start time-series data collection for detailed performance tracking
+    _startTimeSeriesCollection() {
+        // Ensure any existing timer is stopped first
+        this._stopTimeSeriesCollection();
+        
+        // Start timer to capture data every second (1000ms)
+        this.stressTest.timeSeriesTimerId = setInterval(() => {
+            // BULLETPROOF: Check ALL possible stop conditions
+            if (!this.stressTest.enabled || 
+                this.stressTest.timeSeriesTimerId === null || 
+                this.stressTest.timeSeriesTimerId === undefined ||
+                !this.config.isRunning ||
+                this.stressTest.mode !== 'frequency-stepped') {
+                
+                console.log('Time-series callback: ABORT - stop condition detected');
+                
+                // Self-destruct: Clear this interval immediately
+                if (this.stressTest.timeSeriesTimerId) {
+                    clearInterval(this.stressTest.timeSeriesTimerId);
+                    this.stressTest.timeSeriesTimerId = null;
+                }
+                return; // CRITICAL: Exit immediately
+            }
+            
+            this._captureTimeSeriesDataPoint();
+        }, 1000); // Capture every 1 second
+        
+        this.stressTest.lastTimeSeriesCapture = performance.now();
+        console.log('Time-series data collection started (1-second intervals)');
+    },
+
+    // Stop time-series data collection
+    _stopTimeSeriesCollection() {
+        if (this.stressTest.timeSeriesTimerId !== null && this.stressTest.timeSeriesTimerId !== undefined) {
+            console.log(`Stopping time series timer: ${this.stressTest.timeSeriesTimerId}`);
+            clearInterval(this.stressTest.timeSeriesTimerId);
+            this.stressTest.timeSeriesTimerId = null;
+            console.log('Time-series data collection stopped');
+        }
+        
+        // Force clear the ID if it wasn't properly cleared
+        if (this.stressTest.timeSeriesTimerId !== null) {
+            console.warn('Time-series timer ID was not properly cleared, forcing to null');
+            this.stressTest.timeSeriesTimerId = null;
+        }
+    },
+
+    // Capture a single time-series data point
+    _captureTimeSeriesDataPoint() {
+        // CRITICAL SAFETY CHECK: Don't capture data if stress test is disabled
+        if (!this.stressTest.enabled || !this.config.isRunning) {
+            console.log('Skipping time-series data capture - stress test disabled');
+            return;
+        }
+        
+        const now = performance.now();
+        const currentPhase = this.stressTest.currentPhase;
+        const targetFreq = this.stressTest.updateFrequencies[currentPhase] || 1;
+        
+        // Calculate phase elapsed time
+        const phaseElapsed = (now - this.stressTest.phaseStartTime) / 1000;
+        
+        // Calculate actual frequency over the last second
+        const actualFreq = this.stressTest.actualUpdateTimes.filter(
+            time => time > now - 1000
+        ).length;
+        
+        // Get current performance metrics
+        const fps = MetricsCollector.getAverageFPS ? MetricsCollector.getAverageFPS() : 0;
+        const memoryUsage = MetricsCollector.getAverageMemory ? MetricsCollector.getAverageMemory() : 0;
+        const renderTime = MetricsCollector.getAverageLatency ? MetricsCollector.getAverageLatency() : 0;
+        
+        // Create time-series data point
+        const dataPoint = {
+            timestamp: now,
+            phase: currentPhase + 1,
+            phaseElapsed: Math.round(phaseElapsed * 10) / 10, // Round to 1 decimal
+            targetFrequency: targetFreq,
+            actualFrequency: Math.round(actualFreq * 10) / 10,
+            frequencyRatio: targetFreq > 0 ? actualFreq / targetFreq : 0,
+            fps: Math.round(fps * 10) / 10,
+            renderTime: Math.round(renderTime * 100) / 100,
+            memoryUsage: Math.round(memoryUsage * 100) / 100,
+            updateCycle: this.stressTest.updateCycle,
+            droppedUpdates: this.stressTest.droppedUpdates,
+            syncIssues: this.stressTest.syncIssues
+        };
+        
+        this.stressTest.timeSeriesData.push(dataPoint);
+        this.stressTest.lastTimeSeriesCapture = now;
+        
+        // Log progress occasionally
+        if (this.stressTest.timeSeriesData.length % 10 === 0) {
+            console.log(`Time-series: ${this.stressTest.timeSeriesData.length} data points collected`);
+        }
     },
 };
 
