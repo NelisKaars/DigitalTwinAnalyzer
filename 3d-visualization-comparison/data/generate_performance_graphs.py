@@ -326,11 +326,11 @@ def _create_fps_throughput_timeseries(enhanced_data, framework_configs, output_d
     ax1.set_title('Framework Performance vs Data Update Throughput', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('FPS (Frames Per Second)', fontsize=14, fontweight='bold', color='blue')
+    ax1.set_ylabel('FPS (Frames Per Second)', fontsize=14, fontweight='bold', color='black')
     ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
     ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     
@@ -387,11 +387,11 @@ def _create_memory_throughput_timeseries(enhanced_data, framework_configs, outpu
     ax1.set_title('Memory Usage vs Data Update Throughput Over Time', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Memory Usage (MB)', fontsize=14, fontweight='bold', color='blue')
+    ax1.set_ylabel('Memory Usage (MB)', fontsize=14, fontweight='bold', color='black')
     ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
     ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     
@@ -443,11 +443,11 @@ def _create_latency_throughput_timeseries(enhanced_data, framework_configs, outp
     ax1.set_title('Data Binding Latency vs Data Update Throughput Over Time', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Simulation Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Data Binding Latency (ms)', fontsize=14, fontweight='bold', color='blue')
+    ax1.set_ylabel('Data Binding Latency (ms)', fontsize=14, fontweight='bold', color='black')
     ax2.set_ylabel('Data Throughput (updates/sec)', fontsize=14, fontweight='bold', color='orange')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
     ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     

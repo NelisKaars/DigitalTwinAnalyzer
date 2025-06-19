@@ -1,0 +1,177 @@
+{
+  "timestamp": "2025-06-18T12:26:32.518Z",
+  "metrics": {
+    "endToEndLatency": {
+      "samples": 5,
+      "average": 260,
+      "min": 224,
+      "max": 321,
+      "data": [
+        257,
+        321,
+        225,
+        273,
+        224
+      ]
+    },
+    "dittoUpdateLatency": {
+      "samples": 5,
+      "average": 68.6,
+      "min": 50,
+      "max": 96,
+      "data": [
+        66,
+        50,
+        74,
+        96,
+        57
+      ]
+    },
+    "visualRefreshLatency": {
+      "samples": 5,
+      "average": 54.4,
+      "min": 39,
+      "max": 63,
+      "data": [
+        59,
+        63,
+        53,
+        58,
+        39
+      ]
+    },
+    "roundTripTime": {
+      "samples": 5,
+      "average": 192.2,
+      "min": 117,
+      "max": 269,
+      "data": [
+        146,
+        269,
+        238,
+        191,
+        117
+      ]
+    },
+    "simultaneousUpdateSuccessRate": {
+      "attempts": 3,
+      "successes": 3,
+      "rate": 100,
+      "data": [
+        1,
+        1,
+        1
+      ]
+    },
+    "dataConsistencyRate": {
+      "samples": 10,
+      "average": 0,
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "conflictResolutionTime": {
+      "average": 823.2,
+      "min": 809,
+      "max": 832,
+      "data": [
+        832,
+        829,
+        821,
+        825,
+        809
+      ]
+    },
+    "stateConvergenceTime": {
+      "average": 1041,
+      "min": 1028,
+      "max": 1070,
+      "data": [
+        1070,
+        1035,
+        1037,
+        1028,
+        1035
+      ]
+    },
+    "connectionStability": {
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "updateFrequencyAccuracy": {
+      "average": 10,
+      "min": 10,
+      "max": 10,
+      "data": [
+        10
+      ]
+    },
+    "visualLagPerception": {
+      "average": 219.875,
+      "min": 107,
+      "max": 303,
+      "data": [
+        264,
+        303,
+        237,
+        298,
+        159,
+        218,
+        173,
+        107
+      ]
+    },
+    "dataIntegrity": {
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "data": [
+        0
+      ]
+    },
+    "sessionContinuity": {
+      "average": 100,
+      "min": 100,
+      "max": 100,
+      "data": [
+        100,
+        100,
+        100
+      ]
+    },
+    "dataConsistency": {
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}

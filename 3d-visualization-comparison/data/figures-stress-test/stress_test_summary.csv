@@ -1,2 +1,4 @@
 Framework,Max_Stable_Rate_Hz,FPS_Drop_Percent,Missed_Updates,Observations
+Playcanvas,25,4,0,Stutters above 25Hz; Minimal losses
+Babylonjs,25,2,0,Stutters above 25Hz; Minimal losses
 Threejs,25,9,0,Stutters above 25Hz; Minimal losses

@@ -996,6 +996,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Export the dashboardState to window for potential external access
     window.dashboardState = dashboardState;
     
-    // Expose the simulation object to window for potential external access
-    window.Simulation = Simulation;
 });

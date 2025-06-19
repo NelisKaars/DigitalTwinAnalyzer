@@ -181,12 +181,12 @@ def generate_timeseries_fps_graph(timeseries_data, output_dir):
     ax1.set_title('FPS Performance vs Data Update Throughput - Stress Test', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Test Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('FPS (Frames Per Second)', fontsize=14, fontweight='bold', color='blue')
-    ax2.set_ylabel('Target Data Throughput (Hz)', fontsize=14, fontweight='bold', color='orange')
+    ax1.set_ylabel('FPS (Frames Per Second)', fontsize=14, fontweight='bold', color='black')
+    ax2.set_ylabel('Data Throughput (Hz)', fontsize=14, fontweight='bold', color='grey')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='blue', labelsize=12)
-    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='grey', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     
     ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
@@ -285,30 +285,29 @@ def generate_timeseries_memory_graph(timeseries_data, output_dir):
                          color=throughput_colors.get(framework, '#666666'),
                          linewidth=2.5, alpha=0.8, 
                          linestyle=throughput_styles.get(framework, ':'),
-                         label=f'{framework.capitalize()} Actual')
+                         label=f'{framework.capitalize()} Actual Data Throughput')
         
-        # Add phase boundaries and labels - positioned better for memory graph
+        # Add phase boundaries and labels
         phase_changes = sample_df.groupby('Phase')['Test_Time_s'].min()
         
-        for i, (phase, time) in enumerate(phase_changes.items()):
+        for phase, time in phase_changes.items():
             ax1.axvline(x=time, color='gray', linestyle=':', alpha=0.6, linewidth=1)
             target_freq = sample_df[sample_df['Phase'] == phase]['Target_Frequency_Hz'].iloc[0]
-            # Position labels at the bottom to avoid overlap with memory values
-            ax1.text(time + 2, ax1.get_ylim()[0] + (ax1.get_ylim()[1] - ax1.get_ylim()[0]) * 0.05, 
-                    f'P{int(phase)}: {int(target_freq)}Hz', 
-                    ha='left', va='bottom', fontsize=9, alpha=0.8, rotation=45,
-                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+            # Position labels at top of the plot (same as FPS graph)
+            ax1.text(time + 1, ax1.get_ylim()[1] * 0.95, f'Phase {int(phase)}\n{int(target_freq)}Hz', 
+                    ha='left', va='top', fontsize=9, alpha=0.8, 
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
     
     # Customize axes
     ax1.set_title('Memory Usage vs Data Update Throughput - Stress Test', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Test Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Memory Usage (MB)', fontsize=14, fontweight='bold', color='green')
-    ax2.set_ylabel('Actual Data Throughput (Hz)', fontsize=14, fontweight='bold', color='orange')
+    ax1.set_ylabel('Memory Usage (MB)', fontsize=14, fontweight='bold', color='black')
+    ax2.set_ylabel('Throughput (Hz)', fontsize=14, fontweight='bold', color='grey')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='green', labelsize=12)
-    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='grey', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     
     ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
@@ -367,7 +366,7 @@ def generate_timeseries_latency_graph(timeseries_data, output_dir):
                          color=throughput_colors.get(framework, '#666666'),
                          linewidth=2.5, alpha=0.8, 
                          linestyle=throughput_styles.get(framework, ':'),
-                         label=f'{framework.capitalize()} Actual')
+                         label=f'{framework.capitalize()} Actual Data Throughput')
         
         # Add phase boundaries and labels
         phase_changes = sample_df.groupby('Phase')['Test_Time_s'].min()
@@ -375,21 +374,21 @@ def generate_timeseries_latency_graph(timeseries_data, output_dir):
         for phase, time in phase_changes.items():
             ax1.axvline(x=time, color='gray', linestyle=':', alpha=0.6, linewidth=1)
             target_freq = sample_df[sample_df['Phase'] == phase]['Target_Frequency_Hz'].iloc[0]
-            # Position labels at middle-right of the plot
-            ax1.text(time + 1, ax1.get_ylim()[1] * 0.75, f'P{int(phase)}: {int(target_freq)}Hz', 
-                    ha='left', va='center', fontsize=9, alpha=0.8, rotation=90,
-                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+            # Position labels at top of the plot (same as FPS graph)
+            ax1.text(time + 1, ax1.get_ylim()[1] * 0.95, f'Phase {int(phase)}\n{int(target_freq)}Hz', 
+                    ha='left', va='top', fontsize=9, alpha=0.8, 
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
     
     # Customize axes
     ax1.set_title('Render Latency vs Data Update Throughput - Stress Test', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_xlabel('Test Time (seconds)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Render Time (ms)', fontsize=14, fontweight='bold', color='red')
-    ax2.set_ylabel('Actual Data Throughput (Hz)', fontsize=14, fontweight='bold', color='orange')
+    ax1.set_ylabel('Data Binding Latency (ms)', fontsize=14, fontweight='bold', color='black')
+    ax2.set_ylabel('Data Throughput (Hz)', fontsize=14, fontweight='bold', color='grey')
     
     # Style the axes
-    ax1.tick_params(axis='y', labelcolor='red', labelsize=12)
-    ax2.tick_params(axis='y', labelcolor='orange', labelsize=12)
+    ax1.tick_params(axis='y', labelcolor='black', labelsize=12)
+    ax2.tick_params(axis='y', labelcolor='grey', labelsize=12)
     ax1.tick_params(axis='x', labelsize=12)
     
     ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
@@ -615,12 +614,12 @@ def generate_comprehensive_stress_test_graph(timeseries_data, output_dir):
             ax1_twin.plot(df['Test_Time_s'], df['Actual_Frequency_Hz'], 
                          color=throughput_colors.get(framework, '#666666'),
                          linewidth=1.5, alpha=0.7, linestyle=':', 
-                         label=f'{framework.capitalize()[:4]} Actual')
+                         label=f'{framework.capitalize()[:4]} Actual Data Throughput')
     
     ax1.set_title('FPS vs Data Throughput', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('FPS', fontsize=12, color='blue')
+    ax1.set_ylabel('FPS', fontsize=12, color='black')
     ax1_twin.set_ylabel('Throughput (Hz)', fontsize=12, color='orange')
-    ax1.tick_params(axis='y', labelcolor='blue')
+    ax1.tick_params(axis='y', labelcolor='black')
     ax1_twin.tick_params(axis='y', labelcolor='orange')
     ax1.grid(True, alpha=0.3)
     
@@ -644,9 +643,9 @@ def generate_comprehensive_stress_test_graph(timeseries_data, output_dir):
                          linewidth=1.5, alpha=0.7, linestyle=':')
     
     ax2.set_title('Memory vs Data Throughput', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('Memory (MB)', fontsize=12, color='green')
+    ax2.set_ylabel('Memory (MB)', fontsize=12, color='black')
     ax2_twin.set_ylabel('Throughput (Hz)', fontsize=12, color='orange')
-    ax2.tick_params(axis='y', labelcolor='green')
+    ax2.tick_params(axis='y', labelcolor='black')
     ax2_twin.tick_params(axis='y', labelcolor='orange')
     ax2.grid(True, alpha=0.3)
     
@@ -670,9 +669,9 @@ def generate_comprehensive_stress_test_graph(timeseries_data, output_dir):
                          linewidth=1.5, alpha=0.7, linestyle=':')
     
     ax3.set_title('Render Latency vs Data Throughput', fontsize=14, fontweight='bold')
-    ax3.set_ylabel('Render Time (ms)', fontsize=12, color='red')
+    ax3.set_ylabel('Render Time (ms)', fontsize=12, color='black')
     ax3_twin.set_ylabel('Throughput (Hz)', fontsize=12, color='orange')
-    ax3.tick_params(axis='y', labelcolor='red')
+    ax3.tick_params(axis='y', labelcolor='black')
     ax3_twin.tick_params(axis='y', labelcolor='orange')
     ax3.set_xlabel('Test Time (seconds)', fontsize=12)
     ax3.grid(True, alpha=0.3)
@@ -781,12 +780,25 @@ def main():
         if timeseries_data:
             print(f"Found time-series data for frameworks: {list(timeseries_data.keys())}")
             
+            # Generate complete summary data from time-series (includes all phases like 50Hz)
+            print("\nGenerating complete summary from time-series data...")
+            complete_summary_data = generate_summary_from_timeseries(timeseries_data, output_dir)
+            
+            # Update summary table with complete data
+            complete_summary_df = generate_summary_table(complete_summary_data, output_dir)
+            
             print("\nGenerating time-series visualizations...")
             generate_timeseries_fps_graph(timeseries_data, output_dir)
             generate_timeseries_frequency_accuracy_graph(timeseries_data, output_dir)
             generate_timeseries_memory_graph(timeseries_data, output_dir)
             generate_timeseries_latency_graph(timeseries_data, output_dir)
             generate_comprehensive_stress_test_graph(timeseries_data, output_dir)
+            
+            # Also generate standard graphs with complete data
+            print("\nRegenerating standard visualizations with complete data...")
+            generate_fps_stress_graph(complete_summary_data, output_dir)
+            generate_memory_stress_graph(complete_summary_data, output_dir)
+            generate_latency_heatmap(complete_summary_data, output_dir)
             
             files_generated.extend([
                 "stress_test_timeseries_fps.png",
